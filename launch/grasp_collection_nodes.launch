@@ -1,0 +1,11 @@
+<!--
+  Author: David Kent, Worcester Polytechnic Institute
+  Version: March 18, 2013
+-->
+
+<launch>
+  <!-- start the grasp collection nodes -->
+  <node pkg="rail_grasp_collection" type="object_tracker" name="object_tracker" />
+  <node pkg="rail_grasp_collection" type="grasp_collection" name="grasp_collection" />
+</launch>
+
