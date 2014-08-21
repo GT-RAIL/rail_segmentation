@@ -14,6 +14,10 @@
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
 
+//Segmentation parameters
+#define MIN_CLUSTER_SIZE 200
+#define MAX_CLUSTER_SIZE 10000
+
 class railSegmentation
 {
 public:
@@ -26,7 +30,7 @@ public:
   
 private:
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudPtr;
-  std::vector< pcl::PointCloud<pcl::PointXYZRGB>::Ptr > segmentedClouds;
+  std::vector< pcl::PointCloud<pcl::PointXYZRGB>::Ptr> segmentedClouds;
   tf::TransformListener tfListener;
 
   ros::Publisher segmentedObjectsPublisher;

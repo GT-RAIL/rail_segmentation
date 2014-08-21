@@ -42,7 +42,9 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   PointCloud<PointXYZRGB>::Ptr planePtr(new PointCloud<PointXYZRGB>);
   PointCloud<PointXYZRGB>::Ptr planeRemovedPtr(new PointCloud<PointXYZRGB>);
   planeSeg.setOptimizeCoefficients(true);
-  planeSeg.setModelType(SACMODEL_PLANE);
+  planeSeg.setModelType(SACMODEL_PERPENDICULAR_PLANE);
+  planeSeg.setAxis(Eigen::Vector3f(0, 0, 1));
+  planeSeg.setEpsAngle(.15);
   planeSeg.setMethodType(SAC_RANSAC);
   planeSeg.setMaxIterations(100);
   planeSeg.setDistanceThreshold(.01);
@@ -92,9 +94,9 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   search::KdTree<PointXYZRGB>::Ptr searchTree(new search::KdTree<PointXYZRGB>);
   searchTree->setInputCloud(filteredCloudPtr);
   seg.setSearchMethod(searchTree);
-  seg.setClusterTolerance(.03);
-  seg.setMinClusterSize(100);
-  seg.setMaxClusterSize(10000);
+  seg.setClusterTolerance(.02);
+  seg.setMinClusterSize(MIN_CLUSTER_SIZE);
+  seg.setMaxClusterSize(MAX_CLUSTER_SIZE);
   seg.setSearchMethod(searchTree);
   seg.setInputCloud(filteredCloudPtr);
   seg.extract(clusterIndices);
