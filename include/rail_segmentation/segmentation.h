@@ -13,6 +13,9 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
+//debug
+#include <pcl/io/pcd_io.h>
+//end debug
 
 //Segmentation parameters
 #define MIN_CLUSTER_SIZE 200
@@ -35,6 +38,9 @@ private:
 
   ros::Publisher segmentedObjectsPublisher;
   ros::Publisher segmentedObjectsVisPublisher;
+  //debug
+  ros::Publisher debugPublisher;
+  //end debug
   ros::Subscriber pointCloudSubscriber;
 
   ros::ServiceServer segmentServer;

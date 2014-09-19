@@ -5,6 +5,11 @@ using namespace std;
 
 railSegmentation::railSegmentation()
 {
+  //debug
+  //cout << "float min: " << std::numeric_limits<float>::min() << endl;
+  //cout << "float max: " << std::numeric_limits<float>::max() << endl;
+  //end debug
+
   PointCloud<PointXYZRGB>::Ptr tempCloudPtr(new PointCloud<PointXYZRGB>);
   cloudPtr = tempCloudPtr;
 
@@ -12,6 +17,9 @@ railSegmentation::railSegmentation()
 
   segmentedObjectsPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects", 1);
   segmentedObjectsVisPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects_visualization", 1);
+  //debug
+  //debugPublisher = n.advertise<sensor_msgs::PointCloud>("rail_segmentation/debug", 1);
+  //end debug
   pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &railSegmentation::pointCloudCallback, this);
   
   segmentServer = n.advertiseService("rail_segmentation/segment", &railSegmentation::segment, this);
@@ -131,6 +139,17 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
+
+      /*
+      //debug
+      sensor_msgs::PointCloud debugCloud;
+      sensor_msgs::convertPointCloud2ToPointCloud(segmentedObject.objectCloud, debugCloud);
+      debugPublisher.publish(debugCloud);
+      stringstream pcdFileName;
+      pcdFileName << "segCloud_" << i;
+      io::savePCDFileASCII(pcdFileName.str(), *cluster);
+      //end debug
+      */
 
       //downsample point cloud for visualization
       rail_segmentation::SegmentedObject segmentedObjectVis;
