@@ -3,47 +3,41 @@
 using namespace pcl;
 using namespace std;
 
-railSegmentation::railSegmentation()
+RailSegmentation::RailSegmentation()
 {
-  //debug
-  //cout << "float min: " << std::numeric_limits<float>::min() << endl;
-  //cout << "float max: " << std::numeric_limits<float>::max() << endl;
-  //end debug
-
   PointCloud<PointXYZRGB>::Ptr tempCloudPtr(new PointCloud<PointXYZRGB>);
   cloudPtr = tempCloudPtr;
 
   segmentedClouds.clear();
 
-  segmentedObjectsPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects", 1);
-  segmentedObjectsVisPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects_visualization", 1);
-  //debug
-  //debugPublisher = n.advertise<sensor_msgs::PointCloud>("rail_segmentation/debug", 1);
-  //end debug
-  pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &railSegmentation::pointCloudCallback, this);
-  
-  segmentServer = n.advertiseService("rail_segmentation/segment", &railSegmentation::segment, this);
+  segmentedObjectsPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects",
+                                                                                  1);
+  segmentedObjectsVisPublisher = n.advertise<rail_segmentation::SegmentedObjectList>(
+      "rail_segmentation/segmented_objects_visualization", 1);
+  pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &RailSegmentation::pointCloudCallback, this);
+
+  segmentServer = n.advertiseService("rail_segmentation/segment", &RailSegmentation::segment, this);
 }
 
-void railSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud)
+void RailSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud)
 {
   PCLPointCloud2 tempCloud;
   pcl_conversions::toPCL(pointCloud, tempCloud);
   fromPCLPointCloud2(tempCloud, *cloudPtr);
 }
 
-bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res)
+bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res)
 {
-  //convert point cloud to base footprint frame
+  // convert point cloud to base footprint frame
   PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
   pcl_ros::transformPointCloud("base_footprint", *cloudPtr, *transformedCloudPtr, tfListener);
 
-  //filter bad values;
+  // filter bad values;
   PointCloud<PointXYZRGB>::Ptr filteredCloudPtr(new PointCloud<PointXYZRGB>);
   vector<int> filteredIndices;
   removeNaNFromPointCloud(*transformedCloudPtr, *filteredCloudPtr, filteredIndices);
-
-  //find table surface
+  Eigen::Vector3f(0, 0, 1);
+  // find table surface
   SACSegmentation<PointXYZRGB> planeSeg;
   PointIndices::Ptr inliers(new PointIndices);
   ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
@@ -56,7 +50,8 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   planeSeg.setMethodType(SAC_RANSAC);
   planeSeg.setMaxIterations(100);
   planeSeg.setDistanceThreshold(.01);
-  do {
+  do
+  {
     planeSeg.setInputCloud(filteredCloudPtr);
     planeSeg.segment(*inliers, *coefficients);
     if (inliers->indices.size() == 0)
@@ -72,31 +67,33 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
     extract.setNegative(true);
     extract.filter(*planeRemovedPtr);
     *filteredCloudPtr = *planeRemovedPtr;
-    //check point height, if the plane is the floor, extract another plane
+    // check point height, if the plane is the floor, extract another plane
   } while (planePtr->points[0].z < .2);
 
-  //remove all points below the plane
+  // remove all points below the plane
   PointCloud<PointXYZRGB>::Ptr heightFilteredCloudPtr(new PointCloud<PointXYZRGB>);
   float planeHeight = 0.0;
-  for (unsigned int i = 0; i < planePtr->size(); i ++)
+  for (unsigned int i = 0; i < planePtr->size(); i++)
   {
     planeHeight += planePtr->points[i].z;
   }
   planeHeight /= (float)(planePtr->size());
   ROS_INFO("Plane at height: %f", planeHeight);
   ConditionAnd<pcl::PointXYZRGB>::Ptr heightCondition(new ConditionAnd<pcl::PointXYZRGB>);
-  heightCondition->addComparison(FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("z", ComparisonOps::GT, planeHeight)));
-  //Temporary solution for bounding search area to table area: filter anything outside of the robots reach
-  heightCondition->addComparison(FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("x", ComparisonOps::LT, 1.25)));
-  heightCondition->addComparison(FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("x", ComparisonOps::GT, 0.44)));
-  //End temporary solution
+  heightCondition->addComparison(
+      FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("z", ComparisonOps::GT, planeHeight)));
+  // Temporary solution for bounding search area to table area: filter anything outside of the robots reach
+  heightCondition->addComparison(
+      FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("x", ComparisonOps::LT, 1.25)));
+  heightCondition->addComparison(
+      FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("x", ComparisonOps::GT, 0.44)));
+  // End temporary solution
   ConditionalRemoval<PointXYZRGB> heightRemoval(heightCondition);
   heightRemoval.setInputCloud(filteredCloudPtr);
   heightRemoval.filter(*heightFilteredCloudPtr);
   *filteredCloudPtr = *heightFilteredCloudPtr;
   ROS_INFO("done filtering");
 
-  //segmentedClouds.clear();
   EuclideanClusterExtraction<PointXYZRGB> seg;
   vector<PointIndices> clusterIndices;
   search::KdTree<PointXYZRGB>::Ptr searchTree(new search::KdTree<PointXYZRGB>);
@@ -108,9 +105,9 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   seg.setSearchMethod(searchTree);
   seg.setInputCloud(filteredCloudPtr);
   seg.extract(clusterIndices);
-  
+
   ROS_INFO("Found %lu clusters.", clusterIndices.size());
-  
+
   if (clusterIndices.size() > 0)
   {
     rail_segmentation::SegmentedObjectList objectList;
@@ -121,10 +118,10 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
     objectListVis.header.frame_id = filteredCloudPtr->header.frame_id;
     objectListVis.header.stamp = ros::Time::now();
     objectListVis.objects.clear();
-    for (unsigned int i = 0; i < clusterIndices.size(); i ++)
+    for (unsigned int i = 0; i < clusterIndices.size(); i++)
     {
       PointCloud<PointXYZRGB>::Ptr cluster(new PointCloud<PointXYZRGB>);
-      for (unsigned int j = 0; j < clusterIndices[i].indices.size(); j ++)
+      for (unsigned int j = 0; j < clusterIndices[i].indices.size(); j++)
       {
         cluster->points.push_back(filteredCloudPtr->points[clusterIndices[i].indices[j]]);
       }
@@ -132,7 +129,7 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       cluster->height = 1;
       cluster->is_dense = true;
       cluster->header.frame_id = filteredCloudPtr->header.frame_id;
-      
+
       rail_segmentation::SegmentedObject segmentedObject;
       PCLPointCloud2::Ptr tempCloudPtr(new PCLPointCloud2());
       toPCLPointCloud2(*cluster, *tempCloudPtr);
@@ -140,18 +137,7 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
 
-      /*
-      //debug
-      sensor_msgs::PointCloud debugCloud;
-      sensor_msgs::convertPointCloud2ToPointCloud(segmentedObject.objectCloud, debugCloud);
-      debugPublisher.publish(debugCloud);
-      stringstream pcdFileName;
-      pcdFileName << "segCloud_" << i;
-      io::savePCDFileASCII(pcdFileName.str(), *cluster);
-      //end debug
-      */
-
-      //downsample point cloud for visualization
+      // downsample point cloud for visualization
       rail_segmentation::SegmentedObject segmentedObjectVis;
       PCLPointCloud2::Ptr downsampledCloudPtr(new PCLPointCloud2());
       VoxelGrid<PCLPointCloud2> voxelGrid;
@@ -161,8 +147,6 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       pcl_conversions::fromPCL(*downsampledCloudPtr, segmentedObjectVis.objectCloud);
       segmentedObjectVis.recognized = false;
       objectListVis.objects.push_back(segmentedObjectVis);
-      
-      //segmentedClouds.push_back(cluster);
     }
     segmentedObjectsPublisher.publish(objectList);
     segmentedObjectsVisPublisher.publish(objectListVis);
@@ -173,17 +157,14 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   }
 
   ROS_INFO("Segmentation complete.");
-  
   return true;
 }
 
 int main(int argc, char **argv)
 {
-	ros::init(argc, argv, "rail_segmentation");
-	
-	railSegmentation rs;
-	
+  ros::init(argc, argv, "rail_segmentation");
+  RailSegmentation rs;
   ros::spin();
 
-	return 0;
+  return EXIT_SUCCESS;
 }
