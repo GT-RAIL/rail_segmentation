@@ -19,6 +19,7 @@ install:
   - sudo rosdep init
   - rosdep update
   - mkdir -p /tmp/ws/src
+  - ln -s `pwd` /tmp/ws/src/package
   - cd /tmp/ws/src
   - git clone https://github.com/ros-perception/perception_pcl.git
   - cd ../
@@ -26,6 +27,5 @@ install:
 
 script:
   - source /opt/ros/hydro/setup.bash
-  - catkin_make tests --source . -j1 -DCATKIN_ENABLE_TESTING=ON
-  - catkin_make run_tests --source . -j1 -DCATKIN_ENABLE_TESTING=ON
-  - catkin_make install --source . -j1 -DCATKIN_ENABLE_TESTING=ON
+  - catkin_make --source . -j1
+  - catkin_make install
