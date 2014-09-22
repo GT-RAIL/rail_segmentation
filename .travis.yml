@@ -15,6 +15,7 @@ install:
   - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu precise main" > /etc/apt/sources.list.d/ros-latest.list'
   - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
   - sudo apt-get update -qq
+  - sudo apt-get dist-upgrade -yy
   - sudo apt-get install python-catkin-pkg python-rosdep ros-hydro-catkin -qq
   - sudo rosdep init
   - rosdep update
