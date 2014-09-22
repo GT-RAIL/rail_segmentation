@@ -15,12 +15,10 @@ install:
   - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu precise main" > /etc/apt/sources.list.d/ros-latest.list'
   - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
   - sudo apt-get update -qq
-  - sudo apt-get -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" dist-upgrade -yy
-  - sudo apt-get install python-catkin-pkg python-rosdep ros-hydro-catkin -qq
+  - sudo apt-get install python-catkin-pkg python-rosdep -qq
   - sudo rosdep init
   - rosdep update
   - mkdir -p /tmp/ws/src
-  - ln -s `pwd` /tmp/ws/src/package
   - cd /tmp/ws/src
   - git clone https://github.com/ros-perception/perception_pcl.git
   - cd ../
@@ -28,5 +26,6 @@ install:
 
 script:
   - source /opt/ros/hydro/setup.bash
-  - catkin_make
-  - catkin_make install
+  - catkin_make tests --source . -j1 -DCATKIN_ENABLE_TESTING=ON
+  - catkin_make run_tests --source . -j1 -DCATKIN_ENABLE_TESTING=ON
+  - catkin_make install --source . -j1 -DCATKIN_ENABLE_TESTING=ON
