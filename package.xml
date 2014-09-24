@@ -1,12 +1,18 @@
 <?xml version="1.0"?>
 <package>
   <name>rail_segmentation</name>
-  <version>0.0.0</version>
-  <description>Segmentation functionality for various purposes in the RAIL lab setup</description>
+  <version>0.0.1</version>
+  <description>Segmentation Functionality in the RAIL Lab</description>
   
   <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
+  <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
+  <author email="davidkent@wpi.edu">David Kent</author>
   
   <license>BSD</license>
+
+  <url type="website">http://ros.org/wiki/rail_segmentation</url>
+  <url type="bugtracker">https://github.com/WPI-RAIL/rail_segmentation/issues</url>
+  <url type="repository">https://github.com/WPI-RAIL/rail_segmentation</url>
   
   <buildtool_depend>catkin</buildtool_depend>
   
@@ -23,10 +29,8 @@
   <run_depend>pcl_conversions</run_depend>
   <run_depend>pcl_ros</run_depend>
   <run_depend>sensor_msgs</run_depend>
+  <run_depend>std_msgs</run_depend>
   <run_depend>tf</run_depend>
   <run_depend>geometry_msgs</run_depend>
   <run_depend>message_runtime</run_depend>
-  
-  <export>
-  </export>
 </package>
