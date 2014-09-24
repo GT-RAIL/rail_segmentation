@@ -111,6 +111,8 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   
   ROS_INFO("Found %lu clusters.", clusterIndices.size());
   
+  res.objects.clear();
+  
   if (clusterIndices.size() > 0)
   {
     rail_segmentation::SegmentedObjectList objectList;
@@ -139,6 +141,7 @@ bool railSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
+      res.objects.push_back(segmentedObject.objectCloud);
 
       /*
       //debug
