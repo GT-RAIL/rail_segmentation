@@ -1,2 +1,4 @@
+bool clear        #clear current list of segmented objects before adding new ones
+bool useMapFrame  #if true, segment objects with respect to the map frame rather than the robot's base_footprint frame
 ---
-sensor_msgs/PointCloud2[] objects
+sensor_msgs/PointCloud2[] objects   #the segmented point clouds

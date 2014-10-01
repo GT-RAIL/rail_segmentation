@@ -39,6 +39,9 @@ private:
 
   ros::ServiceServer segmentServer;
 
+  rail_segmentation::SegmentedObjectList objectList;    //segmented object list
+  rail_segmentation::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
+
   void pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud);
 
   bool segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res);

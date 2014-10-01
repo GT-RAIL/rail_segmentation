@@ -16,6 +16,11 @@ RailSegmentation::RailSegmentation()
       "rail_segmentation/segmented_objects_visualization", 1);
   pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &RailSegmentation::pointCloudCallback, this);
 
+  objectList.header.stamp = ros::Time::now();
+  objectListVis.header.stamp = ros::Time::now();
+  objectList.objects.clear();
+  objectListVis.objects.clear();
+
   segmentServer = n.advertiseService("rail_segmentation/segment", &RailSegmentation::segment, this);
 }
 
@@ -28,7 +33,7 @@ void RailSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointC
 
 bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res)
 {
-  // convert point cloud to base footprint frame
+  // convert point cloud to base_footprint frame
   PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
   pcl_ros::transformPointCloud("base_footprint", *cloudPtr, *transformedCloudPtr, tfListener);
 
@@ -112,14 +117,14 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   
   if (clusterIndices.size() > 0)
   {
-    rail_segmentation::SegmentedObjectList objectList;
-    rail_segmentation::SegmentedObjectList objectListVis;
-    objectList.header.frame_id = filteredCloudPtr->header.frame_id;
+    
     objectList.header.stamp = ros::Time::now();
-    objectList.objects.clear();
-    objectListVis.header.frame_id = filteredCloudPtr->header.frame_id;
     objectListVis.header.stamp = ros::Time::now();
-    objectListVis.objects.clear();
+    if (req.clear)
+    {
+      objectList.objects.clear();
+      objectListVis.objects.clear();
+    }
     for (unsigned int i = 0; i < clusterIndices.size(); i++)
     {
       PointCloud<PointXYZRGB>::Ptr cluster(new PointCloud<PointXYZRGB>);
@@ -131,10 +136,21 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       cluster->height = 1;
       cluster->is_dense = true;
       cluster->header.frame_id = filteredCloudPtr->header.frame_id;
-
+      
+          
+      
       rail_segmentation::SegmentedObject segmentedObject;
       PCLPointCloud2::Ptr tempCloudPtr(new PCLPointCloud2());
-      toPCLPointCloud2(*cluster, *tempCloudPtr);
+      if (req.useMapFrame)
+      {
+        PointCloud<PointXYZRGB>::Ptr transformedCluster(new PointCloud<PointXYZRGB>);
+        pcl_ros::transformPointCloud("map", *cluster, *transformedCluster, tfListener);
+        toPCLPointCloud2(*transformedCluster, *tempCloudPtr);
+      }
+      else
+      {
+        toPCLPointCloud2(*cluster, *tempCloudPtr);
+      }
       pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
