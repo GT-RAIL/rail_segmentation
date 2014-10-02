@@ -26,8 +26,11 @@ class RailSegmentation
 public:
   ros::NodeHandle n;
 
+  /**
+   * Constructor
+   */
   RailSegmentation();
-
+  
 private:
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudPtr;
   std::vector<pcl::PointCloud<pcl::PointXYZRGB>::Ptr> segmentedClouds;
@@ -36,14 +39,26 @@ private:
   ros::Publisher segmentedObjectsPublisher;
   ros::Publisher segmentedObjectsVisPublisher;
   ros::Subscriber pointCloudSubscriber;
+  
+  ros::Publisher debugPublisher;
 
   ros::ServiceServer segmentServer;
 
   rail_segmentation::SegmentedObjectList objectList;    //segmented object list
   rail_segmentation::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
 
+  /**
+   * Callback for the point cloud listener
+   * @param pointCloud point cloud from the camera stream
+   */
   void pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud);
 
+  /**
+   * Callback for segmentation service
+   * @param req service request
+   * @param res service response
+   * @return true on success
+   */
   bool segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res);
 };
 
