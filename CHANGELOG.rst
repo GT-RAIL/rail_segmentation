@@ -2,6 +2,15 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.2 (2014-10-03)
+------------------
+* added object clearing service and clearing on segmentation of zero objects
+* Updated segmentation with an option for on-robot segmentation, added documentation
+* Updated segmentation service to allow segmentation in either the map frame or the robot frame, also added optional object clearing on segmentation call
+* merge
+* updates for pick and place
+* Contributors: dekent
+
 0.0.1 (2014-09-22)
 ------------------
 * bad source file fixed
