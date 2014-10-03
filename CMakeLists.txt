@@ -4,7 +4,7 @@ project(rail_segmentation)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros sensor_msgs tf)
+find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros sensor_msgs std_srvs tf)
 
 ################################################
 ## Declare ROS messages, services and actions ##

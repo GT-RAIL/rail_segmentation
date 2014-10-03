@@ -16,13 +16,12 @@ RailSegmentation::RailSegmentation()
       "rail_segmentation/segmented_objects_visualization", 1);
   pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &RailSegmentation::pointCloudCallback, this);
 
-  debugPublisher = n.advertise<sensor_msgs::PointCloud2>("rail_segmentation/debug", 1);
-
   objectList.header.stamp = ros::Time::now();
   objectListVis.header.stamp = ros::Time::now();
   objectList.objects.clear();
   objectListVis.objects.clear();
 
+  clearObjectsServer = n.advertiseService("rail_segmentation/clear_objects", &RailSegmentation::clearObjectsCallback, this);
   segmentServer = n.advertiseService("rail_segmentation/segment", &RailSegmentation::segment, this);
 }
 
@@ -35,6 +34,11 @@ void RailSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointC
 
 bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res)
 {
+  if (req.clear)
+  {
+    clearObjects();
+  }
+
   // convert point cloud to base_footprint frame
   PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
   pcl_ros::transformPointCloud("base_footprint", *cloudPtr, *transformedCloudPtr, tfListener);
@@ -119,14 +123,6 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   heightRemoval.setInputCloud(filteredCloudPtr);
   heightRemoval.filter(*volumeBoundedCloudPtr);
   ROS_INFO("done filtering");
-  
-  //DEBUG
-  PCLPointCloud2::Ptr debugCloudTemp(new PCLPointCloud2());
-  toPCLPointCloud2(*volumeBoundedCloudPtr, *debugCloudTemp);
-  sensor_msgs::PointCloud2 debugCloud;
-  pcl_conversions::fromPCL(*debugCloudTemp, debugCloud);
-  debugPublisher.publish(debugCloud);
-  //END DEBUG
 
   EuclideanClusterExtraction<PointXYZRGB> seg;
   vector<PointIndices> clusterIndices;
@@ -148,11 +144,6 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   {
     objectList.header.stamp = ros::Time::now();
     objectListVis.header.stamp = ros::Time::now();
-    if (req.clear)
-    {
-      objectList.objects.clear();
-      objectListVis.objects.clear();
-    }
     for (unsigned int i = 0; i < clusterIndices.size(); i++)
     {
       PointCloud<PointXYZRGB>::Ptr cluster(new PointCloud<PointXYZRGB>);
@@ -203,6 +194,20 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
 
   ROS_INFO("Segmentation complete.");
   return true;
+}
+
+bool RailSegmentation::clearObjectsCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+  clearObjects();
+  return true;
+}
+
+void RailSegmentation::clearObjects()
+{
+  objectList.objects.clear();
+  objectListVis.objects.clear();
+  segmentedObjectsPublisher.publish(objectList);
+  segmentedObjectsVisPublisher.publish(objectListVis);
 }
 
 int main(int argc, char **argv)

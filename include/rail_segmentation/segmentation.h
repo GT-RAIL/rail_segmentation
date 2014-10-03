@@ -7,6 +7,7 @@
 #include <rail_segmentation/Segment.h>
 #include <rail_segmentation/SegmentedObjectList.h>
 #include <sensor_msgs/point_cloud_conversion.h>
+#include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
 
 //PCL
@@ -40,9 +41,8 @@ private:
   ros::Publisher segmentedObjectsVisPublisher;
   ros::Subscriber pointCloudSubscriber;
   
-  ros::Publisher debugPublisher;
-
   ros::ServiceServer segmentServer;
+  ros::ServiceServer clearObjectsServer;
 
   rail_segmentation::SegmentedObjectList objectList;    //segmented object list
   rail_segmentation::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
@@ -60,6 +60,19 @@ private:
    * @return true on success
    */
   bool segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res);
+  
+   /**
+   * Callback for clearing segmented objects
+   * @param req service request
+   * @param res service response
+   * @return true on success
+   */
+  bool clearObjectsCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  
+  /**
+   * Clears segmented objects and publishes to the object list and visualization topics
+   */
+  void clearObjects();
 };
 
 #endif
