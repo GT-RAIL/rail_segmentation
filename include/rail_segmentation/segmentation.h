@@ -4,6 +4,8 @@
 //ROS
 #include <ros/ros.h>
 #include <pcl_ros/transforms.h>
+#include <rail_segmentation/Recognize.h>
+#include <rail_segmentation/RemoveObject.h>
 #include <rail_segmentation/Segment.h>
 #include <rail_segmentation/SegmentedObjectList.h>
 #include <sensor_msgs/point_cloud_conversion.h>
@@ -42,7 +44,11 @@ private:
   ros::Subscriber pointCloudSubscriber;
   
   ros::ServiceServer segmentServer;
+  ros::ServiceServer recognizeServer;
+  ros::ServiceServer removeObjectServer;
   ros::ServiceServer clearObjectsServer;
+  
+  ros::ServiceClient recognizeClient;
 
   rail_segmentation::SegmentedObjectList objectList;    //segmented object list
   rail_segmentation::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
@@ -62,9 +68,25 @@ private:
   bool segment(rail_segmentation::Segment::Request &req, rail_segmentation::Segment::Response &res);
   
    /**
+   * Callback for recognizing any unrecognized segmented objects
+   * @param req empty service request
+   * @param res empty service response
+   * @return true on success
+   */
+  bool recognize(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+   
+   /**
+   * Callback for removing an object in the object list
+   * @param req service request including index of the object to be removed
+   * @param res empty service response
+   * @return true on success
+   */
+  bool removeObject(rail_segmentation::RemoveObject::Request &req, rail_segmentation::RemoveObject::Response &res);
+   
+   /**
    * Callback for clearing segmented objects
-   * @param req service request
-   * @param res service response
+   * @param req empty service request
+   * @param res empty service response
    * @return true on success
    */
   bool clearObjectsCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);

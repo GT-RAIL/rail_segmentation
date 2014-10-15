@@ -21,8 +21,12 @@ RailSegmentation::RailSegmentation()
   objectList.objects.clear();
   objectListVis.objects.clear();
 
+  recognizeClient = n.serviceClient<rail_segmentation::Recognize>("rail_recognition/recognize");
+
   clearObjectsServer = n.advertiseService("rail_segmentation/clear_objects", &RailSegmentation::clearObjectsCallback, this);
+  removeObjectServer = n.advertiseService("rail_segmentation/remove_object", &RailSegmentation::removeObject, this);
   segmentServer = n.advertiseService("rail_segmentation/segment", &RailSegmentation::segment, this);
+  recognizeServer = n.advertiseService("rail_segmentation/recognize", &RailSegmentation::recognize, this);
 }
 
 void RailSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud)
@@ -193,6 +197,55 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   }
 
   ROS_INFO("Segmentation complete.");
+  return true;
+}
+
+bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+  for (unsigned int i = 0; i < objectList.objects.size(); i ++)
+  {
+    if (!objectList.objects[i].recognized)
+    {
+      rail_segmentation::Recognize::Request recReq;
+      rail_segmentation::Recognize::Response recRes;
+      recReq.objectCloud = objectList.objects[i].objectCloud;
+      if (!recognizeClient.call(recReq, recRes))
+      {
+        ROS_INFO("Failed to call object recognition client.");
+        return false;
+      }
+      if (recRes.success)
+      {
+        objectList.objects[i].recognized = true;
+        objectList.objects[i].name = recRes.name;
+        objectList.objects[i].model = recRes.model;
+        objectList.objects[i].graspPoses = recRes.graspPoses;
+        objectListVis.objects[i].recognized = true;
+        objectListVis.objects[i].name = recRes.name;
+        objectListVis.objects[i].model = recRes.model;
+        objectListVis.objects[i].graspPoses = recRes.graspPoses;
+      }
+    }
+  }
+  segmentedObjectsPublisher.publish(objectList);
+  segmentedObjectsVisPublisher.publish(objectListVis);
+  
+  return true;
+}
+
+bool RailSegmentation::removeObject(rail_segmentation::RemoveObject::Request &req, rail_segmentation::RemoveObject::Response &res)
+{
+  if (req.index > objectList.objects.size())
+  {
+    ROS_INFO("Index for object to be removed is outside of objectList bounds.");
+    return true;
+  }
+  objectList.objects.erase(objectList.objects.begin() + req.index);
+  objectListVis.objects.erase(objectListVis.objects.begin() + req.index);
+  
+  segmentedObjectsPublisher.publish(objectList);
+  segmentedObjectsVisPublisher.publish(objectListVis);
+  
   return true;
 }
 
