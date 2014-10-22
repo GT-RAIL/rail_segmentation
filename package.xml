@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package>
   <name>rail_segmentation</name>
-  <version>0.0.2</version>
+  <version>0.0.3</version>
   <description>Segmentation Functionality in the RAIL Lab</description>
   
   <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
