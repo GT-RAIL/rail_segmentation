@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.3 (2014-10-22)
+------------------
+* Incorporated calls to object recognition
+* Contributors: David Kent
+
 0.0.2 (2014-10-03)
 ------------------
 * added object clearing service and clearing on segmentation of zero objects
