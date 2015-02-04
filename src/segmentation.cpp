@@ -20,7 +20,7 @@ RailSegmentation::RailSegmentation()
   objectListVis.header.stamp = ros::Time::now();
   objectList.objects.clear();
   objectListVis.objects.clear();
-
+  
   recognizeClient = n.serviceClient<rail_segmentation::Recognize>("rail_recognition/recognize");
 
   clearObjectsServer = n.advertiseService("rail_segmentation/clear_objects", &RailSegmentation::clearObjectsCallback, this);
