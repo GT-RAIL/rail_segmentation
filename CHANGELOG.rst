@@ -2,8 +2,8 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Forthcoming
------------
+0.0.4 (2015-02-06)
+------------------
 * Update .travis.yml
 * visualized object list initialization
 * Contributors: David Kent, Russell Toris
