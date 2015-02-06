@@ -21,7 +21,11 @@ install:
   - mkdir -p /tmp/ws/src
   - ln -s `pwd` /tmp/ws/src/package
   - cd /tmp/ws/src
-  - git clone https://github.com/ros-perception/perception_pcl.git
+  - git clone https://github.com/ros-perception/perception_pcl.git -b indigo-devel
+  - git clone https://github.com/ros/common_msgs.git -b indigo-devel
+  - git clone https://github.com/ros/geometry_experimental.git -b indigo-devel
+  - mv geometry_experimental/tf2_sensor_msgs .
+  - rm -rf geometry_experimental
   - cd ../
   - rosdep install --from-paths src --ignore-src --rosdistro hydro -y
 
