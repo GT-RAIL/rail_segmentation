@@ -124,7 +124,8 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
       if (segmentationArea != 1)
       {
         PointCloud<PointXYZRGB>::Ptr transformedCluster(new PointCloud<PointXYZRGB>);
-        pcl_ros::transformPointCloud("map", *cluster, *transformedCluster, tfListener);
+        pcl_ros::transformPointCloud("map", ros::Time(0), *cluster, "base_footprint", *transformedCluster, tfListener);
+        transformedCluster->header.frame_id = "map";
         toPCLPointCloud2(*transformedCluster, *tempCloudPtr);
       }
       else
@@ -223,7 +224,8 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       if (req.useMapFrame)
       {
         PointCloud<PointXYZRGB>::Ptr transformedCluster(new PointCloud<PointXYZRGB>);
-        pcl_ros::transformPointCloud("map", *cluster, *transformedCluster, tfListener);
+        pcl_ros::transformPointCloud("map", ros::Time(0), *cluster, "base_footprint", *transformedCluster, tfListener);
+        transformedCluster->header.frame_id = "map";
         toPCLPointCloud2(*transformedCluster, *tempCloudPtr);
       }
       else
@@ -263,8 +265,8 @@ void RailSegmentation::preprocessPointCloud(const PointCloud<PointXYZRGB>::Ptr c
 {
   // convert point cloud to base_footprint frame
   PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
-  pcl_ros::transformPointCloud("base_footprint", *cloudInPtr, *transformedCloudPtr, tfListener);
-
+  pcl_ros::transformPointCloud("base_footprint", ros::Time(0), *cloudInPtr, cloudInPtr->header.frame_id, *transformedCloudPtr, tfListener);
+  transformedCloudPtr->header.frame_id= "base_footprint";
   // filter bad values;
   vector<int> filteredIndices;
   removeNaNFromPointCloud(*transformedCloudPtr, *cloudOutPtr, filteredIndices);
