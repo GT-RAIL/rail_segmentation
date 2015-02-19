@@ -2,6 +2,19 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.0.5 (2015-02-17)
+------------------
+* Fixed a possible exception thrown due to transforming a point cloud at an invalid time
+* Merge branch 'develop' of github.com:WPI-RAIL/rail_segmentation into develop
+* Added an automatic segmentation service which will determine how best to segment based on camera angle
+* Contributors: David Kent
+
+0.0.4 (2015-02-06)
+------------------
+* Update .travis.yml
+* visualized object list initialization
+* Contributors: David Kent, Russell Toris
+
 0.0.3 (2014-10-22)
 ------------------
 * Incorporated calls to object recognition
