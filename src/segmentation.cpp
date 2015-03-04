@@ -12,9 +12,9 @@ RailSegmentation::RailSegmentation()
 
   segmentedClouds.clear();
 
-  segmentedObjectsPublisher = n.advertise<rail_segmentation::SegmentedObjectList>("rail_segmentation/segmented_objects",
+  segmentedObjectsPublisher = n.advertise<rail_manipulation_msgs::SegmentedObjectList>("rail_segmentation/segmented_objects",
                                                                                   1);
-  segmentedObjectsVisPublisher = n.advertise<rail_segmentation::SegmentedObjectList>(
+  segmentedObjectsVisPublisher = n.advertise<rail_manipulation_msgs::SegmentedObjectList>(
       "rail_segmentation/segmented_objects_visualization", 1);
   pointCloudSubscriber = n.subscribe("/camera/depth_registered/points", 1, &RailSegmentation::pointCloudCallback, this);
   cameraPitchSubscriber = n.subscribe("/dynamixel_back", 1, &RailSegmentation::cameraPitchCallback, this);
@@ -119,7 +119,7 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
       cluster->is_dense = true;
       cluster->header.frame_id = volumeBoundedCloudPtr->header.frame_id;
 
-      rail_segmentation::SegmentedObject segmentedObject;
+      rail_manipulation_msgs::SegmentedObject segmentedObject;
       PCLPointCloud2::Ptr tempCloudPtr(new PCLPointCloud2());
       if (segmentationArea != 1)
       {
@@ -132,18 +132,18 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
       {
         toPCLPointCloud2(*cluster, *tempCloudPtr);
       }
-      pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
+      pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.cloud);
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
 
       // downsample point cloud for visualization
-      rail_segmentation::SegmentedObject segmentedObjectVis;
+      rail_manipulation_msgs::SegmentedObject segmentedObjectVis;
       PCLPointCloud2::Ptr downsampledCloudPtr(new PCLPointCloud2());
       VoxelGrid<PCLPointCloud2> voxelGrid;
       voxelGrid.setInputCloud(tempCloudPtr);
       voxelGrid.setLeafSize(.01f, .01f, .01f);
       voxelGrid.filter(*downsampledCloudPtr);
-      pcl_conversions::fromPCL(*downsampledCloudPtr, segmentedObjectVis.objectCloud);
+      pcl_conversions::fromPCL(*downsampledCloudPtr, segmentedObjectVis.cloud);
       segmentedObjectVis.recognized = false;
       objectListVis.objects.push_back(segmentedObjectVis);
     }
@@ -218,8 +218,8 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       cluster->height = 1;
       cluster->is_dense = true;
       cluster->header.frame_id = volumeBoundedCloudPtr->header.frame_id;
-      
-      rail_segmentation::SegmentedObject segmentedObject;
+
+      rail_manipulation_msgs::SegmentedObject segmentedObject;
       PCLPointCloud2::Ptr tempCloudPtr(new PCLPointCloud2());
       if (req.useMapFrame)
       {
@@ -232,19 +232,19 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       {
         toPCLPointCloud2(*cluster, *tempCloudPtr);
       }
-      pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
+      pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.cloud);
       segmentedObject.recognized = false;
       objectList.objects.push_back(segmentedObject);
-      res.objects.push_back(segmentedObject.objectCloud);
+      res.objects.push_back(segmentedObject.cloud);
 
       // downsample point cloud for visualization
-      rail_segmentation::SegmentedObject segmentedObjectVis;
+      rail_manipulation_msgs::SegmentedObject segmentedObjectVis;
       PCLPointCloud2::Ptr downsampledCloudPtr(new PCLPointCloud2());
       VoxelGrid<PCLPointCloud2> voxelGrid;
       voxelGrid.setInputCloud(tempCloudPtr);
       voxelGrid.setLeafSize(.01f, .01f, .01f);
       voxelGrid.filter(*downsampledCloudPtr);
-      pcl_conversions::fromPCL(*downsampledCloudPtr, segmentedObjectVis.objectCloud);
+      pcl_conversions::fromPCL(*downsampledCloudPtr, segmentedObjectVis.cloud);
       segmentedObjectVis.recognized = false;
       objectListVis.objects.push_back(segmentedObjectVis);
     }
@@ -351,12 +351,37 @@ bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty:
     {
       rail_segmentation::Recognize::Request recReq;
       rail_segmentation::Recognize::Response recRes;
-      recReq.objectCloud = objectList.objects[i].objectCloud;
+      pcl_ros::transformPointCloud("base_footprint", objectList.objects[i].cloud, recReq.objectCloud, tfListener);
+      //recReq.objectCloud = objectList.objects[i].objectCloud;
       if (!recognizeClient.call(recReq, recRes))
       {
         ROS_INFO("Failed to call object recognition client.");
         return false;
       }
+      if (recRes.success)
+      {
+        objectList.objects[i].recognized = true;
+        objectList.objects[i].name = recRes.name;
+        objectList.objects[i].model_id = recRes.model;
+        objectList.objects[i].grasps = recRes.graspPoses;
+        objectList.objects[i].grasps.resize(recRes.graspPoses.size());
+        objectListVis.objects[i].grasps.resize(recRes.graspPoses.size());
+        for (unsigned int j = 0; j < recRes.graspPoses.size(); j ++)
+        {
+          tfListener.transformPose(objectList.objects[i].cloud.header.frame_id, recRes.graspPoses[j], objectList.objects[i].grasps[j]);
+          tfListener.transformPose(objectList.objects[i].cloud.header.frame_id, recRes.graspPoses[j], objectListVis.objects[i].grasps[j]);
+        }
+        objectListVis.objects[i].recognized = true;
+        objectListVis.objects[i].name = recRes.name;
+        objectListVis.objects[i].model_id = recRes.model;
+        ROS_INFO("------------------");
+        for (unsigned int j = 0; j < objectList.objects[i].grasps.size(); j ++)
+        {
+          ROS_INFO("Grasp %d position: (%f, %f, %f)", j, objectList.objects[i].grasps[j].pose.position.x, objectList.objects[i].grasps[j].pose.position.y, objectList.objects[i].grasps[j].pose.position.z);
+        }
+        ROS_INFO("------------------");
+      }
+      /*
       if (recRes.success)
       {
         objectList.objects[i].recognized = true;
@@ -367,7 +392,14 @@ bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty:
         objectListVis.objects[i].name = recRes.name;
         objectListVis.objects[i].model = recRes.model;
         objectListVis.objects[i].graspPoses = recRes.graspPoses;
+        ROS_INFO("------------------");
+        for (unsigned int j = 0; j < objectList.objects[i].graspPoses.size(); j ++)
+        {
+          ROS_INFO("Grasp %d position: (%f, %f, %f)", j, objectList.objects[i].graspPoses[j].pose.position.x, objectList.objects[i].graspPoses[j].pose.position.y, objectList.objects[i].graspPoses[j].pose.position.z);
+        }
+        ROS_INFO("------------------");
       }
+      */
     }
   }
   segmentedObjectsPublisher.publish(objectList);

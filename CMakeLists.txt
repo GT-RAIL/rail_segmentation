@@ -4,17 +4,11 @@ project(rail_segmentation)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros sensor_msgs std_srvs tf)
+find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros rail_manipulation_msgs sensor_msgs std_srvs tf)
 
 ################################################
 ## Declare ROS messages, services and actions ##
 ################################################
-
-add_message_files(
-  FILES
-  SegmentedObject.msg
-  SegmentedObjectList.msg
-)
 
 add_service_files(
   FILES
@@ -55,7 +49,7 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
 )
 
-add_dependencies(rail_segmentation ${PROJECT_NAME}_generate_messages_cpp)
+add_dependencies(rail_segmentation ${PROJECT_NAME}_generate_messages_cpp rail_manipulation_msgs_generate_messages_cpp)
 
 #############
 ## Install ##

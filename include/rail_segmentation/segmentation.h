@@ -4,10 +4,10 @@
 //ROS
 #include <ros/ros.h>
 #include <pcl_ros/transforms.h>
+#include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_segmentation/Recognize.h>
 #include <rail_segmentation/RemoveObject.h>
 #include <rail_segmentation/Segment.h>
-#include <rail_segmentation/SegmentedObjectList.h>
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <std_srvs/Empty.h>
@@ -54,8 +54,8 @@ private:
   
   ros::ServiceClient recognizeClient;
 
-  rail_segmentation::SegmentedObjectList objectList;    //segmented object list
-  rail_segmentation::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
+  rail_manipulation_msgs::SegmentedObjectList objectList;    //segmented object list
+  rail_manipulation_msgs::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
 
   /**
    * \brief Callback for the point cloud listener
