@@ -21,6 +21,7 @@ install:
   - mkdir -p /tmp/ws/src
   - ln -s `pwd` /tmp/ws/src/package
   - cd /tmp/ws/src
+  - git clone https://github.com/WPI-RAIL/rail_manipulation_msgs.git
   - git clone https://github.com/ros-perception/perception_pcl.git -b indigo-devel
   - git clone https://github.com/ros/common_msgs.git -b indigo-devel
   - git clone https://github.com/ros/geometry_experimental.git -b indigo-devel
