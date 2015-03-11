@@ -1,0 +1,7 @@
+# Define the goal
+---
+# Define the result
+int32 totalRecognized
+---
+# Define feedback message
+string message

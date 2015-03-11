@@ -3,7 +3,8 @@
 using namespace pcl;
 using namespace std;
 
-RailSegmentation::RailSegmentation()
+RailSegmentation::RailSegmentation() :
+    asRecognizeAll(n, "rail_segmentation/recognize_all", boost::bind(&RailSegmentation::executeRecognizeAll, this, _1), false)
 {
   cameraPitch = 0;
 
@@ -24,13 +25,15 @@ RailSegmentation::RailSegmentation()
   objectList.objects.clear();
   objectListVis.objects.clear();
   
-  recognizeClient = n.serviceClient<rail_segmentation::Recognize>("rail_recognition/recognize");
+  recognizeClient = n.serviceClient<rail_segmentation::Recognize>("rail_pick_and_place_tools/recognize");
 
   clearObjectsServer = n.advertiseService("rail_segmentation/clear_objects", &RailSegmentation::clearObjectsCallback, this);
   removeObjectServer = n.advertiseService("rail_segmentation/remove_object", &RailSegmentation::removeObject, this);
   autoSegmentServer = n.advertiseService("rail_segmentation/segment_auto", &RailSegmentation::segmentAuto, this);
   segmentServer = n.advertiseService("rail_segmentation/segment", &RailSegmentation::segment, this);
   recognizeServer = n.advertiseService("rail_segmentation/recognize", &RailSegmentation::recognize, this);
+
+  asRecognizeAll.start();
 }
 
 void RailSegmentation::pointCloudCallback(const sensor_msgs::PointCloud2& pointCloud)
@@ -351,8 +354,9 @@ bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty:
     {
       rail_segmentation::Recognize::Request recReq;
       rail_segmentation::Recognize::Response recRes;
+      //TODO: test without transforming to base_footprint first (need to make change in updating poses in the for loop below...)
       pcl_ros::transformPointCloud("base_footprint", objectList.objects[i].cloud, recReq.objectCloud, tfListener);
-      //recReq.objectCloud = objectList.objects[i].objectCloud;
+      //recReq.objectCloud = objectList.objects[i].cloud;
       if (!recognizeClient.call(recReq, recRes))
       {
         ROS_INFO("Failed to call object recognition client.");
@@ -374,38 +378,75 @@ bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty:
         objectListVis.objects[i].recognized = true;
         objectListVis.objects[i].name = recRes.name;
         objectListVis.objects[i].model_id = recRes.model;
-        ROS_INFO("------------------");
-        for (unsigned int j = 0; j < objectList.objects[i].grasps.size(); j ++)
-        {
-          ROS_INFO("Grasp %d position: (%f, %f, %f)", j, objectList.objects[i].grasps[j].pose.position.x, objectList.objects[i].grasps[j].pose.position.y, objectList.objects[i].grasps[j].pose.position.z);
-        }
-        ROS_INFO("------------------");
       }
-      /*
-      if (recRes.success)
-      {
-        objectList.objects[i].recognized = true;
-        objectList.objects[i].name = recRes.name;
-        objectList.objects[i].model = recRes.model;
-        objectList.objects[i].graspPoses = recRes.graspPoses;
-        objectListVis.objects[i].recognized = true;
-        objectListVis.objects[i].name = recRes.name;
-        objectListVis.objects[i].model = recRes.model;
-        objectListVis.objects[i].graspPoses = recRes.graspPoses;
-        ROS_INFO("------------------");
-        for (unsigned int j = 0; j < objectList.objects[i].graspPoses.size(); j ++)
-        {
-          ROS_INFO("Grasp %d position: (%f, %f, %f)", j, objectList.objects[i].graspPoses[j].pose.position.x, objectList.objects[i].graspPoses[j].pose.position.y, objectList.objects[i].graspPoses[j].pose.position.z);
-        }
-        ROS_INFO("------------------");
-      }
-      */
     }
   }
   segmentedObjectsPublisher.publish(objectList);
   segmentedObjectsVisPublisher.publish(objectListVis);
   
   return true;
+}
+
+void RailSegmentation::executeRecognizeAll(const rail_segmentation::RecognizeAllGoalConstPtr &goal)
+{
+  rail_segmentation::RecognizeAllResult result;
+  rail_segmentation::RecognizeAllFeedback feedback;
+  int totalRecognized = 0;
+  for (unsigned int i = 0; i < objectList.objects.size(); i ++)
+  {
+    stringstream ss;
+    ss << "Recognizing object " << i + 1 << " of " << objectList.objects.size() << "...";
+    feedback.message = ss.str();
+    asRecognizeAll.publishFeedback(feedback);
+    if (!objectList.objects[i].recognized)
+    {
+      rail_segmentation::Recognize::Request recReq;
+      rail_segmentation::Recognize::Response recRes;
+      //TODO: test without transforming to base_footprint first (need to make change in updating poses in the for loop below...)
+      pcl_ros::transformPointCloud("base_footprint", objectList.objects[i].cloud, recReq.objectCloud, tfListener);
+      //recReq.objectCloud = objectList.objects[i].cloud;
+      if (!recognizeClient.call(recReq, recRes))
+      {
+        ROS_INFO("Failed to call object recognition service.");
+        result.totalRecognized = totalRecognized;
+        asRecognizeAll.setAborted(result, "Could not call object recognition service.");
+        return;
+      }
+      if (recRes.success)
+      {
+        stringstream ssResult;
+        ssResult << "Successfully recognized object " << i + 1 << ".";
+        feedback.message = ssResult.str();
+        asRecognizeAll.publishFeedback(feedback);
+        objectList.objects[i].recognized = true;
+        objectList.objects[i].name = recRes.name;
+        objectList.objects[i].model_id = recRes.model;
+        objectList.objects[i].grasps = recRes.graspPoses;
+        objectList.objects[i].grasps.resize(recRes.graspPoses.size());
+        objectListVis.objects[i].grasps.resize(recRes.graspPoses.size());
+        for (unsigned int j = 0; j < recRes.graspPoses.size(); j ++)
+        {
+          tfListener.transformPose(objectList.objects[i].cloud.header.frame_id, recRes.graspPoses[j], objectList.objects[i].grasps[j]);
+          tfListener.transformPose(objectList.objects[i].cloud.header.frame_id, recRes.graspPoses[j], objectListVis.objects[i].grasps[j]);
+        }
+        objectListVis.objects[i].recognized = true;
+        objectListVis.objects[i].name = recRes.name;
+        objectListVis.objects[i].model_id = recRes.model;
+      }
+      else
+      {
+        stringstream ssResult;
+        ssResult << "Failed to recognize object " << i + 1 << ".";
+        feedback.message = ssResult.str();
+      }
+    }
+  }
+
+  segmentedObjectsPublisher.publish(objectList);
+  segmentedObjectsVisPublisher.publish(objectListVis);
+
+  result.totalRecognized = totalRecognized;
+  asRecognizeAll.setSucceeded(result);
 }
 
 bool RailSegmentation::removeObject(rail_segmentation::RemoveObject::Request &req, rail_segmentation::RemoveObject::Response &res)

@@ -17,7 +17,13 @@ add_service_files(
   Segment.srv
 )
 
+add_action_files(
+  FILES
+  RecognizeAll.action
+)
+
 generate_messages(DEPENDENCIES
+  actionlib_msgs
   geometry_msgs
   sensor_msgs
 )

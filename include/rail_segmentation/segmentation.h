@@ -3,8 +3,10 @@
 
 //ROS
 #include <ros/ros.h>
+#include <actionlib/server/simple_action_server.h>
 #include <pcl_ros/transforms.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
+#include <rail_segmentation/RecognizeAllAction.h>
 #include <rail_segmentation/Recognize.h>
 #include <rail_segmentation/RemoveObject.h>
 #include <rail_segmentation/Segment.h>
@@ -53,6 +55,8 @@ private:
   ros::ServiceServer clearObjectsServer;
   
   ros::ServiceClient recognizeClient;
+
+  actionlib::SimpleActionServer<rail_segmentation::RecognizeAllAction> asRecognizeAll;
 
   rail_manipulation_msgs::SegmentedObjectList objectList;    //segmented object list
   rail_manipulation_msgs::SegmentedObjectList objectListVis; //downsampled segmented object list for visualization
@@ -117,7 +121,9 @@ private:
    * @return true on success
    */
   bool recognize(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-   
+
+  void executeRecognizeAll(const rail_segmentation::RecognizeAllGoalConstPtr &goal);
+
    /**
    * \brief Callback for removing an object in the object list
    * @param req service request including index of the object to be removed
