@@ -2,11 +2,12 @@
 <package>
   <name>rail_segmentation</name>
   <version>0.0.5</version>
-  <description>Segmentation Functionality in the RAIL Lab</description>
-  
-  <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
-  <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
+  <description>Segmentation Functionality from the RAIL Lab</description>
+
+  <author email="rctoris@wpi.edu">Russell Toris</author>
   <author email="davidkent@wpi.edu">David Kent</author>
+  <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
+  <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
   
   <license>BSD</license>
 
@@ -16,26 +17,18 @@
   
   <buildtool_depend>catkin</buildtool_depend>
 
-  <build_depend>actionlib</build_depend>
-  <build_depend>actionlib_msgs</build_depend>
-  <build_depend>geometry_msgs</build_depend>  
-  <build_depend>message_generation</build_depend>
-  <build_depend>pcl_conversions</build_depend>
+  <build_depend>boost</build_depend>
   <build_depend>pcl_ros</build_depend>
-  <build_depend>rail_manipulation_msgs</build_depend>
   <build_depend>roscpp</build_depend>
+  <build_depend>rail_manipulation_msgs</build_depend>
   <build_depend>sensor_msgs</build_depend>
   <build_depend>std_srvs</build_depend>
   <build_depend>tf</build_depend>
 
-  <run_depend>actionlib</run_depend>
-  <run_depend>actionlib_msgs</run_depend>
-  <run_depend>geometry_msgs</run_depend>
-  <run_depend>message_runtime</run_depend>
-  <run_depend>pcl_conversions</run_depend>
+  <run_depend>boost</run_depend>
   <run_depend>pcl_ros</run_depend>
-  <run_depend>rail_manipulation_msgs</run_depend>
   <run_depend>roscpp</run_depend>
+  <run_depend>rail_manipulation_msgs</run_depend>
   <run_depend>sensor_msgs</run_depend>
   <run_depend>std_srvs</run_depend>
   <run_depend>tf</run_depend>
