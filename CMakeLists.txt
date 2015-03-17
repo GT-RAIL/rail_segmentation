@@ -5,6 +5,8 @@ project(rail_segmentation)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
+  message_generation
+  pcl_conversions
   pcl_ros
   roscpp
   roslib
@@ -17,6 +19,18 @@ find_package(catkin REQUIRED COMPONENTS
 )
 find_package(Boost REQUIRED COMPONENTS thread)
 find_package(PkgConfig)
+
+################################################
+## Declare ROS messages, services and actions ##
+################################################
+
+## Generate services in the 'srv' folder
+add_service_files(
+  FILES
+  RemoveObject.srv
+)
+
+generate_messages()
 
 ###################################################
 ## Declare things to be passed to other projects ##
@@ -51,6 +65,9 @@ add_executable(${PROJECT_NAME}
   src/SegmentationZone.cpp
   src/Segmenter.cpp
 )
+
+## Add message build dependencies (needed for source build)
+add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_generate_messages_cpp rail_manipulation_msgs_generate_messages_cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}

@@ -4,7 +4,6 @@
 #include <ros/package.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
-#include <visualization_msgs/MarkerArray.h>
 
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/extract_indices.h>
@@ -32,6 +31,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
   clear_srv_ = private_node_.advertiseService("clear", &Segmenter::clearCallback, this);
+  remove_object_srv_ = private_node_.advertiseService("remove_object", &Segmenter::removeObjectCallback, this);
   segmented_objects_pub_ = private_node_.advertise<rail_manipulation_msgs::SegmentedObjectList>(
       "segmented_objects", 1, true
   );
@@ -138,20 +138,50 @@ bool Segmenter::okay() const
 void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc)
 {
   // lock for the point cloud
-  boost::mutex::scoped_lock lock(mutex_);
+  boost::mutex::scoped_lock lock(pc_mutex_);
   // simply store the latest point cloud
   pc_ = pc;
 }
 
 bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
-  // empty lists
-  rail_manipulation_msgs::SegmentedObjectList object_list;
-  visualization_msgs::MarkerArray markers;
+  // lock for the messages
+  boost::mutex::scoped_lock lock(msg_mutex_);
+  // empty the lists
+  object_list_.objects.clear();
+  markers_.markers.clear();
+  // set header information
+  object_list_.header.seq++;
+  object_list_.header.stamp = ros::Time::now();
   // republish
-  segmented_objects_pub_.publish(object_list);
-  markers_pub_.publish(markers);
+  segmented_objects_pub_.publish(object_list_);
+  markers_pub_.publish(markers_);
   return true;
+}
+
+bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &req,
+    rail_segmentation::RemoveObject::Response &res)
+{
+  // lock for the messages
+  boost::mutex::scoped_lock lock(msg_mutex_);
+  // check the index
+  if (req.index < object_list_.objects.size() && req.index < markers_.markers.size())
+  {
+    // remove
+    object_list_.objects.erase(object_list_.objects.begin() + req.index);
+    markers_.markers.erase(markers_.markers.begin() + req.index);
+    // set header information
+    object_list_.header.seq++;
+    object_list_.header.stamp = ros::Time::now();
+    // republish
+    segmented_objects_pub_.publish(object_list_);
+    markers_pub_.publish(markers_);
+    return true;
+  } else
+  {
+    ROS_ERROR("Attempted to remove index %d from list of size %d.", req.index, (int) object_list_.objects.size());
+    return false;
+  }
 }
 
 bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
@@ -167,7 +197,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   pcl::PointCloud<pcl::PointXYZRGB> transformed_pc;
   // lock on the point cloud
   {
-    boost::mutex::scoped_lock lock(mutex_);
+    boost::mutex::scoped_lock lock(pc_mutex_);
     // perform the copy/transform using TF
     pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), pc_, pc_.header.frame_id,
         transformed_pc, tf_);
@@ -248,9 +278,8 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
 
   if (clusters.size() > 0)
   {
-    // list to publish
-    rail_manipulation_msgs::SegmentedObjectList object_list;
-    visualization_msgs::MarkerArray markers;
+    // lock for the messages
+    boost::mutex::scoped_lock lock(msg_mutex_);
 
     // check each cluster
     for (size_t i = 0; i < clusters.size(); i++)
@@ -301,18 +330,19 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.centroid.z = centroid[2];
 
       // add to the final list
-      object_list.objects.push_back(segmented_object);
+      object_list_.objects.push_back(segmented_object);
       // add to the markers
-      markers.markers.push_back(segmented_object.marker);
+      markers_.markers.push_back(segmented_object.marker);
     }
 
     // publish the new list
-    object_list.header.stamp = ros::Time::now();
-    object_list.header.frame_id = zone.getSegmentationFrameID();
-    segmented_objects_pub_.publish(object_list);
+    object_list_.header.seq++;
+    object_list_.header.stamp = ros::Time::now();
+    object_list_.header.frame_id = zone.getSegmentationFrameID();
+    segmented_objects_pub_.publish(object_list_);
 
     // publish the new marker array
-    markers_pub_.publish(markers);
+    markers_pub_.publish(markers_);
   } else
   {
     ROS_WARN("No segmented objects found.");

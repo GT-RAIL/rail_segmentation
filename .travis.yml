@@ -34,3 +34,19 @@ script:
   - source /opt/ros/hydro/setup.bash
   - catkin_make -j1
   - catkin_make install
+  - rm -rf build/ devel/ install/
+  - sudo apt-get purge yaml-cpp
+  - mkdir yaml
+  - cd yaml/
+  - wget https://yaml-cpp.googlecode.com/files/yaml-cpp-0.5.1.tar.gz
+  - tar -xvzf yaml-cpp-0.5.1.tar.gz
+  - cd yaml-cpp-0.5.1/
+  - mkdir build
+  - cd build/
+  - cmake ..
+  - make
+  - sudo make install
+  - cd ../../../
+  - rm -rf yaml
+  - catkin_make -j1
+  - catkin_make install

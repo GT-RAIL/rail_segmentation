@@ -3,12 +3,14 @@
 
 #include <pcl_ros/point_cloud.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
+#include <rail_segmentation/RemoveObject.h>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
 #include <tf2_ros/transform_listener.h>
 #include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
 
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
@@ -57,6 +59,9 @@ private:
 
   bool clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
+  bool removeObjectCallback(rail_segmentation::RemoveObject::Request &req,
+      rail_segmentation::RemoveObject::Response &res);
+
   double findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &pc, const double z_min, const double z_max) const;
 
   void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc, std::vector<pcl::PointIndices> &clusters) const;
@@ -69,15 +74,15 @@ private:
 
   /*! The debug and okay check flags. */
   bool debug_, okay_;
-  /*! Mutex for locking on the point cloud. */
-  boost::mutex mutex_;
+  /*! Mutex for locking on the point cloud and current messages. */
+  boost::mutex pc_mutex_, msg_mutex_;
   /*! List of segmentation zones. */
   std::vector<SegmentationZone> zones_;
 
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
   /*! Services advertised by this node */
-  ros::ServiceServer segment_srv_, clear_srv_;
+  ros::ServiceServer segment_srv_, clear_srv_, remove_object_srv_;
   /*! Publishers used in the node. */
   ros::Publisher segmented_objects_pub_, markers_pub_, debug_pub_;
   /*! Subscribers used in the node. */
@@ -91,6 +96,10 @@ private:
 
   /*! Latest point cloud. */
   pcl::PointCloud<pcl::PointXYZRGB> pc_;
+  /*! Current object list. */
+  rail_manipulation_msgs::SegmentedObjectList object_list_;
+  /*! Current marker array. */
+  visualization_msgs::MarkerArray markers_;
 };
 
 }
