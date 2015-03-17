@@ -4,15 +4,29 @@ project(rail_segmentation)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS
-  pcl_ros
-  roscpp
-  rail_manipulation_msgs
-  sensor_msgs
-  std_srvs
-  tf
+find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros rail_manipulation_msgs sensor_msgs std_srvs tf)
+
+################################################
+## Declare ROS messages, services and actions ##
+################################################
+
+add_service_files(
+  FILES
+  Recognize.srv
+  RemoveObject.srv
+  Segment.srv
 )
-find_package(Boost REQUIRED COMPONENTS thread)
+
+add_action_files(
+  FILES
+  RecognizeAll.action
+)
+
+generate_messages(DEPENDENCIES
+  actionlib_msgs
+  geometry_msgs
+  sensor_msgs
+)
 
 ###################################################
 ## Declare things to be passed to other projects ##
@@ -28,22 +42,20 @@ catkin_package()
 ###########
 
 ## Specify additional locations of header files
-include_directories(include
-  ${boost_INCLUDE_DIRS}
+include_directories(
+  include
   ${catkin_INCLUDE_DIRS}
 )
 
 ## Declare a cpp executable
-add_executable(${PROJECT_NAME}
-  nodes/${PROJECT_NAME}.cpp
-  src/Segmenter.cpp
-)
+add_executable(${PROJECT_NAME} src/segmentation.cpp)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}
-  ${boost_LIBRARIES}
   ${catkin_LIBRARIES}
 )
+
+add_dependencies(rail_segmentation ${PROJECT_NAME}_generate_messages_cpp rail_manipulation_msgs_generate_messages_cpp)
 
 #############
 ## Install ##
