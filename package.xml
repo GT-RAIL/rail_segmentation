@@ -7,13 +7,13 @@
   <author email="davidkent@wpi.edu">David Kent</author>
   <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
   <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
-  
+
   <license>BSD</license>
 
   <url type="website">http://ros.org/wiki/rail_segmentation</url>
   <url type="bugtracker">https://github.com/WPI-RAIL/rail_segmentation/issues</url>
   <url type="repository">https://github.com/WPI-RAIL/rail_segmentation</url>
-  
+
   <buildtool_depend>catkin</buildtool_depend>
 
   <build_depend>boost</build_depend>
