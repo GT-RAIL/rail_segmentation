@@ -1,3 +1,14 @@
+/*!
+ * \file rail_segmentation.cpp
+ * \brief The main segmentation node.
+ *
+ * The segmenter is responsible for segmenting clusters from a point cloud topic. Visualization and data latched topics
+ * are published after each request. A persistent array of objects is maintained internally.
+ *
+ * \author Russell Toris, WPI - rctoris@wpi.edu
+ * \date March 17, 2015
+ */
+
 #include <rail_segmentation/Segmenter.h>
 
 using namespace std;
@@ -14,7 +25,8 @@ int main(int argc, char **argv)
 {
   // initialize ROS and the node
   ros::init(argc, argv, "rail_segmentation");
-  Segmenter segmenter;  // check if everything started okay
+  Segmenter segmenter;
+  // check if everything started okay
   if (segmenter.okay())
   {
     ros::spin();

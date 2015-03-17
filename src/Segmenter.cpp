@@ -1,3 +1,15 @@
+/*!
+ * \file Segmenter.cpp
+ * \brief The main segmentation node object.
+ *
+ * The segmenter is responsible for segmenting clusters from a point cloud topic. Visualization and data latched topics
+ * are published after each request. A persistent array of objects is maintained internally.
+ *
+ * \author Russell Toris, WPI - rctoris@wpi.edu
+ * \author David Kent, WPI - davidkent@wpi.edu
+ * \date March 17, 2015
+ */
+
 #include <rail_segmentation/Segmenter.h>
 
 #include <pcl_ros/transforms.h>
@@ -147,15 +159,19 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
 {
   // lock for the messages
   boost::mutex::scoped_lock lock(msg_mutex_);
-  // empty the lists
+  // empty the list
   object_list_.objects.clear();
-  markers_.markers.clear();
   // set header information
   object_list_.header.seq++;
   object_list_.header.stamp = ros::Time::now();
   // republish
   segmented_objects_pub_.publish(object_list_);
+  // delete markers
+  for (size_t i = 0; i< markers_.markers.size(); i++) {
+    markers_.markers[i].action = visualization_msgs::Marker::DELETE;
+  }
   markers_pub_.publish(markers_);
+  markers_.markers.clear();
   return true;
 }
 
@@ -169,13 +185,15 @@ bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &r
   {
     // remove
     object_list_.objects.erase(object_list_.objects.begin() + req.index);
-    markers_.markers.erase(markers_.markers.begin() + req.index);
     // set header information
     object_list_.header.seq++;
     object_list_.header.stamp = ros::Time::now();
     // republish
     segmented_objects_pub_.publish(object_list_);
+    // delete marker
+    markers_.markers[req.index].action = visualization_msgs::Marker::DELETE;
     markers_pub_.publish(markers_);
+    markers_.markers.erase(markers_.markers.begin() + req.index);
     return true;
   } else
   {
@@ -215,7 +233,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   double z_min = zone.getZMin();
   if (zone.getRemoveSurface())
   {
-    double z_surface = this->findSurface(*filtered_pc, zone.getZMin(), zone.getZMax());
+    double z_surface = this->findSurface(*filtered_pc, *filtered_pc, zone.getZMin(), zone.getZMax());
     // check the new bound for Z
     z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
   }
@@ -351,7 +369,8 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   return true;
 }
 
-double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &pc, const double z_min, const double z_max) const
+double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::PointCloud<pcl::PointXYZRGB> &out,
+    const double z_min, const double z_max) const
 {
   // use a plane (SAC) segmenter
   pcl::SACSegmentation<pcl::PointXYZRGB> plane_seg;
@@ -365,7 +384,7 @@ double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &pc, const
   plane_seg.setDistanceThreshold(SAC_DISTANCE_THRESHOLD);
 
   // create a copy to work with
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_copy(new pcl::PointCloud<pcl::PointXYZRGB>(pc));
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_copy(new pcl::PointCloud<pcl::PointXYZRGB>(in));
   plane_seg.setInputCloud(pc_copy);
 
   // Check point height -- if the plane is too low or high, extract another
@@ -392,18 +411,17 @@ double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &pc, const
     extract.setIndices(inliers_ptr);
     extract.setNegative(false);
     extract.filter(plane);
+    // extract everything else and try again
+    extract.setNegative(true);
+    extract.filter(*pc_copy);
 
     // check the height
     double height = this->averageZ(plane.points);
     if (height >= z_min && height <= z_max)
     {
       ROS_INFO("Surface found at %fm.", height);
+      out = *pc_copy;
       return height;
-    } else
-    {
-      // extract everything else and try again
-      extract.setNegative(true);
-      extract.filter(*pc_copy);
     }
   }
 }
@@ -481,6 +499,7 @@ visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr 
 
   // set the type of marker and our color of choice
   marker.type = visualization_msgs::Marker::CUBE_LIST;
+  // TODO maybe use average RGB value of cluster?
   marker.color.r = ((float) (rand()) / (float) (RAND_MAX)) / 3.0 + 0.66;
   marker.color.g = ((float) (rand()) / (float) (RAND_MAX)) / 4.0;
   marker.color.b = ((float) (rand()) / (float) (RAND_MAX)) / 5.0;

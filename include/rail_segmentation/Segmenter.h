@@ -1,3 +1,15 @@
+/*!
+ * \file Segmenter.h
+ * \brief The main segmentation node object.
+ *
+ * The segmenter is responsible for segmenting clusters from a point cloud topic. Visualization and data latched topics
+ * are published after each request. A persistent array of objects is maintained internally.
+ *
+ * \author Russell Toris, WPI - rctoris@wpi.edu
+ * \author David Kent, WPI - davidkent@wpi.edu
+ * \date March 17, 2015
+ */
+
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
 #define RAIL_SEGMENTATION_SEGMENTER_H_
 
@@ -24,6 +36,13 @@ namespace rail
 namespace segmentation
 {
 
+/*!
+ * \class Segmenter
+ * \brief The main grasp collector node object.
+ *
+ * The grasp collector is responsible for capturing and storing grasps. An action server is started is the main entry
+ * point to grasp collecting.
+ */
 class Segmenter
 {
 public:
@@ -48,28 +67,125 @@ public:
   /*! Size of the marker visualization scale factor. */
   static const double MARKER_SCALE = 0.01;
 
+  /*!
+   * \brief Create a Segmenter and associated ROS information.
+   *
+   * Creates a ROS node handle, subscribes to the relevant topics and servers, and creates services for requesting
+   * segmenations.
+   */
   Segmenter();
 
+  /*!
+   * \brief A check for a valid Segmenter.
+   *
+   * This function will return true if valid segmenation zones were parsed from a YAML config file.
+   *
+   * \return True if valid segmenation zones were parsed.
+   */
   bool okay() const;
 
 private:
+  /*!
+   * \brief Callback for the point cloud topic.
+   *
+   * Saves a copy of the latest point cloud internally.
+   *
+   * \param pc The current point cloud message.
+   */
   void pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc);
 
+  /*!
+   * \brief Callback for the main segmentation request.
+   *
+   * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+   * array of the resulting segmentation.
+   *
+   * \param req The empty request (unused).
+   * \param res The empty response (unused).
+   * \return Returns true if the segmentation was successful.
+   */
   bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
+  /*!
+   * \brief Callback for the clear request.
+   *
+   * Clears the current segmented object list. This will publish both an empty segmented object list and a marker
+   * array with delete actions from the last segmentation request.
+   *
+   * \param req The empty request (unused).
+   * \param res The empty response (unused).
+   * \return Will always return true.
+   */
   bool clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
+  /*!
+   * \brief Callback for the remove object request.
+   *
+   * Remote the object from the segmented object list with a given ID. This will publish both an updated segmented
+   * object list and a marker array with a delete action for the given marker index.
+   *
+   * \param req The request with the index to use.
+   * \param res The empty response (unused).
+   * \return Returns true if a valid index was provided.
+   */
   bool removeObjectCallback(rail_segmentation::RemoveObject::Request &req,
       rail_segmentation::RemoveObject::Response &res);
 
-  double findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &pc, const double z_min, const double z_max) const;
+  /*!
+   * \brief Find and remove a surface from the given point cloud.
+   *
+   * Find a surface in the input point cloud and attempt to remove it. The surface must be within the bounds provided
+   * in order to be removed. The resulting point cloud is placed in the output cloud. If no surface is found, no
+   * effect is made to the output cloud and negative infinity is returned.
+   *
+   * \param in The input point cloud.
+   * \param out The output point cloud.
+   * \param z_min The minimum height of a surface to remove.
+   * \param z_max The maximum height of a surface to remove.
+   * \return The average height of the surface that was removed or negtive infinity if no valid surface was found.
+   */
+  double findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::PointCloud<pcl::PointXYZRGB> &out,
+      const double z_min, const double z_max) const;
 
+  /*!
+   * \brief Find clusters in a point cloud.
+   *
+   * Find the clusters in the given point cloud using euclidean cluster extraction and a KD search tree.
+   *
+   * \param pc The point cloud to search for point clouds from.
+   * \param clusters The indices of each cluster in the point cloud.
+   */
   void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc, std::vector<pcl::PointIndices> &clusters) const;
 
+  /*!
+   * \brief Find the average Z value of the point vector.
+   *
+   * Finds the average Z value of the point vector. An empty vector will return an average of 0.
+   *
+   * \param v The vector of points to average.
+   * \return The average Z value of the provided points.
+   */
   double averageZ(const std::vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB> > &v) const;
 
+  /*!
+   * \brief Create a Marker from the given point cloud.
+   *
+   * Creates a new Marker message based on the PCL point cloud. The point cloud will first be downsampled.
+   *
+   * \param pc The PCL point cloud to create a marker for.
+   * \return The corresponding marker for the given point cloud.
+   */
   visualization_msgs::Marker createMaker(pcl::PCLPointCloud2::ConstPtr pc) const;
 
+  /*!
+   * \brief Determine the current zone based on the latest state of the TF tree.
+   *
+   * Checks each segmenation zone criteria based on teh latest state of the TF tree and returns a reference to that
+   * zone. If multiple zones are met, the first is returned. If no valid zone is found, the first zone is returned
+   * and a warning is sent to ROS_WARN.
+   *
+   * \return The zone that matches the current state of the TF tree.
+   */
   const SegmentationZone &getCurrentZone() const;
 
   /*! The debug and okay check flags. */

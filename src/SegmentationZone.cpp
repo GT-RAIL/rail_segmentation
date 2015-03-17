@@ -1,3 +1,14 @@
+/*!
+ * \file SegmentationZone.cpp
+ * \brief The criteria for a segmentation zone.
+ *
+ * Segmentation zones are defined by X, Y, and Z bounds for use in segmenation. There are determined by bounds placed
+ * on the RPY of a given transform. Each zone also has associated frame information.
+ *
+ * \author Russell Toris, WPI - rctoris@wpi.edu
+ * \date March 17, 2015
+ */
+
 #include <rail_segmentation/SegmentationZone.h>
 #include <limits>
 
