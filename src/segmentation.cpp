@@ -263,17 +263,17 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   return true;
 }
 
-//void RailSegmentation::preprocessPointCloud(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
-//    PointCloud<PointXYZRGB>::Ptr cloudOutPtr)
-//{
-//  // convert point cloud to base_footprint frame
-//  PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
-//  pcl_ros::transformPointCloud("base_footprint", ros::Time(0), *cloudInPtr, cloudInPtr->header.frame_id, *transformedCloudPtr, tfListener);
-//  transformedCloudPtr->header.frame_id= "base_footprint";
-//  // filter bad values;
-//  vector<int> filteredIndices;
-//  removeNaNFromPointCloud(*transformedCloudPtr, *cloudOutPtr, filteredIndices);
-//}
+void RailSegmentation::preprocessPointCloud(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
+    PointCloud<PointXYZRGB>::Ptr cloudOutPtr)
+{
+  // convert point cloud to base_footprint frame
+  PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
+  pcl_ros::transformPointCloud("base_footprint", ros::Time(0), *cloudInPtr, cloudInPtr->header.frame_id, *transformedCloudPtr, tfListener);
+  transformedCloudPtr->header.frame_id= "base_footprint";
+  // filter bad values;
+  vector<int> filteredIndices;
+  removeNaNFromPointCloud(*transformedCloudPtr, *cloudOutPtr, filteredIndices);
+}
 
 float RailSegmentation::removeTableSurface(PointCloud<PointXYZRGB>::Ptr pointCloudPtr)
 {
