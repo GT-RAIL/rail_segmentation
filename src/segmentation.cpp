@@ -108,8 +108,6 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
 
   vector<PointIndices> clusterIndices = boundAndExtractClusters(filteredCloudPtr, volumeBoundedCloudPtr, boundingCondition, normalCloudPtr, labels, excludeLabels);
 
-  printf("here123\n");
-
   if (clusterIndices.size() > 0)
   {
     objectList.header.stamp = ros::Time::now();
@@ -400,7 +398,7 @@ std::vector<pcl::PointIndices> RailSegmentation::boundAndExtractClusters(const P
 void RailSegmentation::extractOrganizedClustersImage(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
     const std::vector<int> &indices, sensor_msgs::Image::Ptr im)
 {
-  assert(cloudInPtr->isOrganized() == True);
+  assert(cloudInPtr->isOrganized() == true);
 
   PointCloud<PointXYZRGB>::Ptr temPtr(new PointCloud<PointXYZRGB>);
 

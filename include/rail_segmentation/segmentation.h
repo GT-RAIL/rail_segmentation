@@ -19,25 +19,17 @@
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/voxel_grid.h>
-#include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
 #include <pcl/features/integral_image_normal.h>
 #include <pcl/segmentation/organized_multi_plane_segmentation.h>
 #include <pcl/segmentation/edge_aware_plane_comparator.h>
 #include <pcl/segmentation/euclidean_cluster_comparator.h>
-//#include <pcl/surface/mls.h>
-#include <pcl/surface/bilateral_upsampling.h>
-#include <pcl/visualization/cloud_viewer.h>
-#include <pcl/visualization/image_viewer.h>
 #include <pcl/segmentation/organized_connected_component_segmentation.h>
 #include <pcl/features/normal_3d.h>
 
+//OpenCV
 #include "opencv2/opencv.hpp"
-#include <opencv2/core/core.hpp>
-#include <opencv2/highgui/highgui.hpp>
-#include <opencv2/nonfree/features2d.hpp>
 #include <cv_bridge/cv_bridge.h>
-#include <iostream>
 
 
 //Segmentation parameters
@@ -115,6 +107,9 @@ private:
   /**
   * \brief Detect the largest non-floor horizontal surface within a point cloud
   * @param pointCloudPtr Input/output point cloud from which to detect and remove a table surface
+  * @param normalCloudPtr Input/output point cloud containing the normals for each point in pointCloudPtr
+  * @param labels Input/output point cloud containing labels for each point in pointCloudPtr
+  * @param excludeLabels Input/output a bool vector containing labels in the label cloud to exclude.
   * @return height of the removed plane
   */
   float removeTableSurface(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloudPtr,
@@ -126,6 +121,9 @@ private:
   * @param cloudInPtr Input point cloud
   * @param cloudOutPtr Output point cloud to which the returned PointIndices are registered
   * @param boundingCondition Conditions defining the bounded volume
+  * @param normalCloudPtr Input/output point cloud containing the normals for each point in pointCloudPtr
+  * @param labels Input/output point cloud containing labels for each point in pointCloudPtr
+  * @param excludeLabels Input/output a bool vector containing labels in the label cloud to exclude.
   * @return A list of PointIndices representing each segmented cluster within the output point cloud
   */
   std::vector<pcl::PointIndices> boundAndExtractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
@@ -133,7 +131,12 @@ private:
       pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr, pcl::PointCloud<pcl::Label>::Ptr labels,
       std::vector<bool>* excludeLabels);
 
-
+  /**
+  * \brief Segment objects within a bounded volume
+  * @param cloudInPtr Input point cloud
+  * @param indices define the cluster in cloudInPtr
+  * @param im Input/output a image message containing an image of the indices
+  */
   void extractOrganizedClustersImage(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
       const std::vector<int> &indices, sensor_msgs::Image::Ptr im);
 
