@@ -4,7 +4,7 @@ project(rail_segmentation)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros sensor_msgs std_srvs tf)
+find_package(catkin REQUIRED COMPONENTS geometry_msgs message_generation roscpp pcl_conversions pcl_ros sensor_msgs std_srvs tf cv_bridge)
 
 ################################################
 ## Declare ROS messages, services and actions ##
@@ -53,6 +53,7 @@ add_executable(${PROJECT_NAME} src/segmentation.cpp)
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES} opencv_nonfree
 )
 
 add_dependencies(rail_segmentation ${PROJECT_NAME}_generate_messages_cpp)

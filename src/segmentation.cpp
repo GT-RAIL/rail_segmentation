@@ -59,11 +59,18 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
     segmentationArea = 2;
 
   PointCloud<PointXYZRGB>::Ptr filteredCloudPtr(new PointCloud<PointXYZRGB>);
+  pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr (new pcl::PointCloud<pcl::Normal>);
   preprocessPointCloud(cloudPtr, filteredCloudPtr);
+
+
 
   // Determine bounding volume for segmentation
   PointCloud<PointXYZRGB>::Ptr volumeBoundedCloudPtr(new PointCloud<PointXYZRGB>);
   ConditionAnd<PointXYZRGB>::Ptr boundingCondition(new ConditionAnd<PointXYZRGB>);
+  pcl::PointCloud<pcl::Label>::Ptr labels (new pcl::PointCloud<pcl::Label>);
+  std::vector<bool>* excludeLabels = (new std::vector<bool>);
+
+  float planeHeight = removeTableSurface(filteredCloudPtr,normalCloudPtr,labels, excludeLabels);
   if (segmentationArea == 1)
   {
     // bound search area to the volume above CARL's base plate
@@ -80,8 +87,6 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
   }
   else
   {
-    float planeHeight = removeTableSurface(filteredCloudPtr);
-
     // bound search area to table area roughly within CARL's area of influence
     boundingCondition->addComparison(
         FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("z", ComparisonOps::GT, planeHeight + .005)));
@@ -101,7 +106,9 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
     }
   }
 
-  vector<PointIndices> clusterIndices = boundAndExtractClusters(filteredCloudPtr, volumeBoundedCloudPtr, boundingCondition);
+  vector<PointIndices> clusterIndices = boundAndExtractClusters(filteredCloudPtr, volumeBoundedCloudPtr, boundingCondition, normalCloudPtr, labels, excludeLabels);
+
+  printf("here123\n");
 
   if (clusterIndices.size() > 0)
   {
@@ -109,6 +116,9 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
     objectListVis.header.stamp = ros::Time::now();
     for (unsigned int i = 0; i < clusterIndices.size(); i++)
     {
+      sensor_msgs::Image::Ptr im(new sensor_msgs::Image);
+      extractOrganizedClustersImage(volumeBoundedCloudPtr, clusterIndices[i].indices, im);
+
       PointCloud<PointXYZRGB>::Ptr cluster(new PointCloud<PointXYZRGB>);
       for (unsigned int j = 0; j < clusterIndices[i].indices.size(); j++)
       {
@@ -134,6 +144,7 @@ bool RailSegmentation::segmentAuto(std_srvs::Empty::Request &req, std_srvs::Empt
       }
       pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
       segmentedObject.recognized = false;
+      segmentedObject.objectImage = *im;
       objectList.objects.push_back(segmentedObject);
 
       // downsample point cloud for visualization
@@ -167,15 +178,18 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   }
 
   PointCloud<PointXYZRGB>::Ptr filteredCloudPtr(new PointCloud<PointXYZRGB>);
+  pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr (new pcl::PointCloud<pcl::Normal>);
   preprocessPointCloud(cloudPtr, filteredCloudPtr);
 
   // Determine bounding volume for segmentation
   PointCloud<PointXYZRGB>::Ptr volumeBoundedCloudPtr(new PointCloud<PointXYZRGB>);
   ConditionAnd<pcl::PointXYZRGB>::Ptr boundingCondition(new ConditionAnd<pcl::PointXYZRGB>);
+  pcl::PointCloud<pcl::Label>::Ptr labels (new pcl::PointCloud<pcl::Label>);
+  std::vector<bool>* excludeLabels = (new std::vector<bool>);
+
+  float planeHeight = removeTableSurface(filteredCloudPtr,normalCloudPtr,labels, excludeLabels);
   if (!req.segmentOnRobot)
   {
-    float planeHeight = removeTableSurface(filteredCloudPtr);
-
     // bound search area to table area roughly within CARL's reach
     boundingCondition->addComparison(
         FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("z", ComparisonOps::GT, planeHeight + .005)));
@@ -199,16 +213,19 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       FieldComparison<PointXYZRGB>::ConstPtr(new FieldComparison<PointXYZRGB>("z", ComparisonOps::GT, 0.745)));
   }
 
-  vector<PointIndices> clusterIndices = boundAndExtractClusters(filteredCloudPtr, volumeBoundedCloudPtr, boundingCondition);
+
+  vector<PointIndices> clusterIndices = boundAndExtractClusters(filteredCloudPtr, volumeBoundedCloudPtr, boundingCondition, normalCloudPtr, labels, excludeLabels);
 
   res.objects.clear();
-  
   if (clusterIndices.size() > 0)
   {
     objectList.header.stamp = ros::Time::now();
     objectListVis.header.stamp = ros::Time::now();
     for (unsigned int i = 0; i < clusterIndices.size(); i++)
     {
+      sensor_msgs::Image::Ptr im(new sensor_msgs::Image);
+      extractOrganizedClustersImage(volumeBoundedCloudPtr, clusterIndices[i].indices, im);
+
       PointCloud<PointXYZRGB>::Ptr cluster(new PointCloud<PointXYZRGB>);
       for (unsigned int j = 0; j < clusterIndices[i].indices.size(); j++)
       {
@@ -218,7 +235,7 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       cluster->height = 1;
       cluster->is_dense = true;
       cluster->header.frame_id = volumeBoundedCloudPtr->header.frame_id;
-      
+
       rail_segmentation::SegmentedObject segmentedObject;
       PCLPointCloud2::Ptr tempCloudPtr(new PCLPointCloud2());
       if (req.useMapFrame)
@@ -234,6 +251,7 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
       }
       pcl_conversions::fromPCL(*tempCloudPtr, segmentedObject.objectCloud);
       segmentedObject.recognized = false;
+      segmentedObject.objectImage = *im;
       objectList.objects.push_back(segmentedObject);
       res.objects.push_back(segmentedObject.objectCloud);
 
@@ -260,88 +278,190 @@ bool RailSegmentation::segment(rail_segmentation::Segment::Request &req, rail_se
   return true;
 }
 
-void RailSegmentation::preprocessPointCloud(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
-    PointCloud<PointXYZRGB>::Ptr cloudOutPtr)
+void RailSegmentation::preprocessPointCloud(const pcl::PointCloud<PointXYZRGB>::Ptr cloudInPtr,
+    pcl::PointCloud<PointXYZRGB>::Ptr cloudOutPtr)
 {
   // convert point cloud to base_footprint frame
-  PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new PointCloud<PointXYZRGB>);
-  pcl_ros::transformPointCloud("base_footprint", ros::Time(0), *cloudInPtr, cloudInPtr->header.frame_id, *transformedCloudPtr, tfListener);
-  transformedCloudPtr->header.frame_id= "base_footprint";
-  // filter bad values;
-  vector<int> filteredIndices;
-  removeNaNFromPointCloud(*transformedCloudPtr, *cloudOutPtr, filteredIndices);
+  pcl::PointCloud<PointXYZRGB>::Ptr transformedCloudPtr(new pcl::PointCloud<PointXYZRGB>);
+  pcl_ros::transformPointCloud("base_footprint", ros::Time(0), *cloudInPtr, cloudInPtr->header.frame_id, *cloudOutPtr, tfListener);
+  cloudOutPtr->header.frame_id= "base_footprint";
 }
 
-float RailSegmentation::removeTableSurface(PointCloud<PointXYZRGB>::Ptr pointCloudPtr)
+float RailSegmentation::removeTableSurface(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloudPtr,
+    pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr, pcl::PointCloud<pcl::Label>::Ptr labels,
+    std::vector<bool>* excludeLabels)
 {
-  // find table surface
-  SACSegmentation<PointXYZRGB> planeSeg;
-  PointIndices::Ptr inliers(new PointIndices);
-  ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
-  PointCloud<PointXYZRGB>::Ptr planePtr(new PointCloud<PointXYZRGB>);
-  PointCloud<PointXYZRGB>::Ptr planeRemovedPtr(new PointCloud<PointXYZRGB>);
-  planeSeg.setOptimizeCoefficients(true);
-  planeSeg.setModelType(SACMODEL_PERPENDICULAR_PLANE);
-  planeSeg.setAxis(Eigen::Vector3f(0, 0, 1));
-  planeSeg.setEpsAngle(.15);
-  planeSeg.setMethodType(SAC_RANSAC);
-  planeSeg.setMaxIterations(100);
-  planeSeg.setDistanceThreshold(.01);
-  do
-  {
-    planeSeg.setInputCloud(pointCloudPtr);
-    planeSeg.segment(*inliers, *coefficients);
-    if (inliers->indices.size() == 0)
-    {
-      ROS_INFO("Could not find a table surface");
-      return false;
-    }
-    ExtractIndices<PointXYZRGB> extract;
-    extract.setInputCloud(pointCloudPtr);
-    extract.setIndices(inliers);
-    extract.setNegative(false);
-    extract.filter(*planePtr);
-    extract.setNegative(true);
-    extract.filter(*planeRemovedPtr);
-    *pointCloudPtr = *planeRemovedPtr;
-    // check point height, if the plane is the floor, extract another plane
-  } while (planePtr->points[0].z < .2);
-
-  // bound volume above table plane
   float planeHeight = 0.0;
-  for (unsigned int i = 0; i < planePtr->size(); i++)
-  {
-    planeHeight += planePtr->points[i].z;
-  }
-  planeHeight /= (float)(planePtr->size());
-  ROS_INFO("Found plane at height: %f", planeHeight);
+  size_t planeSize = 0;
 
+  //Get surface normals from the point cloud
+  pcl::IntegralImageNormalEstimation<PointXYZRGB, pcl::Normal> normalEstimator;
+  normalEstimator.setNormalEstimationMethod (normalEstimator.COVARIANCE_MATRIX);
+  normalEstimator.setMaxDepthChangeFactor (0.02f);
+  normalEstimator.setNormalSmoothingSize (20.0f);
+  normalEstimator.setInputCloud(pointCloudPtr);
+  normalEstimator.compute(*normalCloudPtr);
+  float* distance_map = normalEstimator.getDistanceMap();
+
+  std::vector<pcl::PlanarRegion<PointXYZRGB>, Eigen::aligned_allocator<pcl::PlanarRegion<PointXYZRGB> > > regions;
+  std::vector<pcl::ModelCoefficients> model_coefficients;
+  std::vector<pcl::PointIndices> inlier_indices;
+  std::vector<pcl::PointIndices> label_indices;
+  std::vector<pcl::PointIndices> boundary_indices;
+  pcl::OrganizedMultiPlaneSegmentation<PointXYZRGB, pcl::Normal, pcl::Label> mps;
+  pcl::EdgeAwarePlaneComparator<PointXYZRGB, pcl::Normal>::Ptr edgeAwareComparator;
+  edgeAwareComparator.reset (new pcl::EdgeAwarePlaneComparator<PointXYZRGB, pcl::Normal> ());
+  boost::shared_ptr<EdgeAwarePlaneComparator<PointXYZRGB,Normal> > eapc = boost::dynamic_pointer_cast<EdgeAwarePlaneComparator<pcl::PointXYZRGB,Normal> >(edgeAwareComparator);
+  eapc->setDistanceMap(distance_map);
+  eapc->setDistanceThreshold (0.01f, false);
+  mps.setMinInliers (MAX_CLUSTER_SIZE);
+  mps.setAngularThreshold(pcl::deg2rad(3.0)); //3 degrees
+  mps.setDistanceThreshold(0.02); //2cm
+  mps.setComparator (eapc);
+  mps.setInputNormals(normalCloudPtr);
+  mps.setInputCloud (pointCloudPtr);
+  mps.segmentAndRefine (regions, model_coefficients, inlier_indices, labels, label_indices, boundary_indices);
+
+  excludeLabels->resize (label_indices.size (), false);
+  for (size_t i = 0; i < label_indices.size (); i++)
+  {
+    if (label_indices[i].indices.size () > MAX_CLUSTER_SIZE)
+    {
+      pcl::NormalEstimation<PointXYZRGB, pcl::Normal> ne;
+      float nx, ny, nz, curve;
+      ne.computePointNormal(*pointCloudPtr, label_indices[i].indices, nx, ny, nz, curve);
+
+      if (nz > 0.97)
+      {
+        Eigen::Vector4f xyz_centroid;
+        compute3DCentroid(*pointCloudPtr, label_indices[i].indices, xyz_centroid);
+        if (xyz_centroid[2] > planeHeight && label_indices[i].indices.size() > planeSize)
+        {
+          planeHeight = xyz_centroid[2];
+          planeSize = label_indices[i].indices.size();
+        }
+      }
+
+      (*excludeLabels)[i] = true;
+      ExtractIndices<PointXYZRGB> extract;
+      boost::shared_ptr<vector<int> > indicesPtr(new vector<int> (label_indices[i].indices));
+      extract.setKeepOrganized(true);
+      extract.setInputCloud(pointCloudPtr);
+      extract.setIndices(indicesPtr);
+      extract.setNegative(true);
+      extract.filterDirectly(pointCloudPtr);
+    }
+  }
+
+  //assume plane height is 0.205
+  ROS_INFO("Found plane at height: %f", planeHeight);
   return planeHeight;
 }
 
 std::vector<pcl::PointIndices> RailSegmentation::boundAndExtractClusters(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
-    PointCloud<PointXYZRGB>::Ptr cloudOutPtr, ConditionAnd<PointXYZRGB>::Ptr boundingCondition)
+    PointCloud<PointXYZRGB>::Ptr cloudOutPtr, ConditionAnd<PointXYZRGB>::Ptr boundingCondition,
+    pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr, pcl::PointCloud<pcl::Label>::Ptr labels,
+    std::vector<bool>* excludeLabels)
 {
   ConditionalRemoval<PointXYZRGB> heightRemoval(boundingCondition);
   heightRemoval.setInputCloud(cloudInPtr);
+  heightRemoval.setKeepOrganized(true);
   heightRemoval.filter(*cloudOutPtr);
   ROS_INFO("done filtering");
 
-  EuclideanClusterExtraction<PointXYZRGB> seg;
-  vector<PointIndices> clusterIndices;
-  search::KdTree<PointXYZRGB>::Ptr searchTree(new search::KdTree<PointXYZRGB>);
-  searchTree->setInputCloud(cloudOutPtr);
-  seg.setSearchMethod(searchTree);
-  seg.setClusterTolerance(.02);
-  seg.setMinClusterSize(MIN_CLUSTER_SIZE);
-  seg.setMaxClusterSize(MAX_CLUSTER_SIZE);
-  seg.setSearchMethod(searchTree);
-  seg.setInputCloud(cloudOutPtr);
-  seg.extract(clusterIndices);
+  //Segment Objects
+  pcl::EuclideanClusterComparator<PointXYZRGB, pcl::Normal, pcl::Label>::Ptr comp (new pcl::EuclideanClusterComparator<PointXYZRGB, pcl::Normal, pcl::Label> ());
+  comp->setInputCloud(cloudOutPtr);
+  comp->setInputNormals(normalCloudPtr);
+  comp->setLabels(labels);
+  comp->setExcludeLabels(*excludeLabels);
+  comp->setDistanceThreshold(0.01f, false);
+  comp->setAngularThreshold(pcl::deg2rad(3.0f));
 
-  ROS_INFO("Found %lu clusters.", clusterIndices.size());
-  return clusterIndices;
+  pcl::PointCloud<pcl::Label> euclidean_labels;
+  std::vector<pcl::PointIndices> euclidean_label_indices;
+  pcl::OrganizedConnectedComponentSegmentation <PointXYZRGB, pcl::Label> seg(comp);
+  seg.setInputCloud(cloudOutPtr);
+  seg.segment(euclidean_labels, euclidean_label_indices);
+
+  for (std::vector<pcl::PointIndices>::iterator it = euclidean_label_indices.end(); euclidean_label_indices.begin() < it; it--)
+  {
+    if ((*it).indices.size() < MIN_CLUSTER_SIZE || (*it).indices.size() > MAX_CLUSTER_SIZE)
+      euclidean_label_indices.erase(it);
+  }
+
+  ROS_INFO("Found %lu clusters.", euclidean_label_indices.size());
+  return euclidean_label_indices;
 }
+
+
+
+
+void RailSegmentation::extractOrganizedClustersImage(const PointCloud<PointXYZRGB>::Ptr cloudInPtr,
+    const std::vector<int> &indices, sensor_msgs::Image::Ptr im)
+{
+  assert(cloudInPtr->isOrganized() == True);
+
+  PointCloud<PointXYZRGB>::Ptr temPtr(new PointCloud<PointXYZRGB>);
+
+  int inWidth = cloudInPtr->width;
+  int minCol = cloudInPtr->width, maxCol = 0, minRow = cloudInPtr->height, maxRow = 0;
+  for(size_t i = 0; i < indices.size(); i++)
+  {
+    int row = indices[i] / cloudInPtr->width;
+    int col = indices[i]-(row * cloudInPtr->width);
+
+    if(row < minRow)
+      minRow = row;
+    else if(row > maxRow)
+      maxRow = row;
+
+    if(col < minCol)
+      minCol = col;
+    else if(col > maxCol)
+      maxCol = col;
+  }
+
+  //printf("size %d\n",(maxRow - minRow)*(maxCol - minCol));
+
+  int iter = 0;
+  for(size_t r = 0; r < maxRow - minRow; r++)
+  {
+    for(size_t c = 0; c < maxCol - minCol; c++)
+    {
+      temPtr->points.push_back(cloudInPtr->at(minCol+c, minRow+r));
+    }
+  }
+
+  temPtr->height = maxRow - minRow;
+  temPtr->width = maxCol - minCol;
+  temPtr->is_dense = true;
+  temPtr->header.frame_id = cloudInPtr->header.frame_id;
+
+
+  cv::Mat result = cv::Mat(temPtr->height, temPtr->width, CV_8UC3);
+  if (!temPtr->empty()) {
+    for (int h=0; h<result.rows; h++) {
+      for (int w=0; w<result.cols; w++) {
+        pcl::PointXYZRGB point = temPtr->at(w, h);
+
+
+        Eigen::Vector3i rgb = point.getRGBVector3i();
+
+        result.at<cv::Vec3b>(h,w)[0] = rgb[2];
+        result.at<cv::Vec3b>(h,w)[1] = rgb[1];
+        result.at<cv::Vec3b>(h,w)[2] = rgb[0];
+      }
+    }
+
+    cv_bridge::CvImage cvi;
+    cvi.header.frame_id = "base_footprint";
+    cvi.encoding = "bgr8";
+    cvi.image = result;
+    cvi.toImageMsg(*im);
+  }
+}
+
 
 bool RailSegmentation::recognize(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {

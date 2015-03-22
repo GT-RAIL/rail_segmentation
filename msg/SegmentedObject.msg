@@ -3,3 +3,4 @@ bool recognized                         #true if the object is recognized
 string name                             #object name if recognized
 int32 model                             #model index if recognized
 geometry_msgs/PoseStamped[] graspPoses  #list of grasp poses if recognized
+sensor_msgs/Image objectImage           #image of segmented

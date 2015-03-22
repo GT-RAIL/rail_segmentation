@@ -10,6 +10,7 @@
 #include <rail_segmentation/SegmentedObjectList.h>
 #include <sensor_msgs/JointState.h>
 #include <sensor_msgs/point_cloud_conversion.h>
+#include <sensor_msgs/image_encodings.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
 
@@ -20,6 +21,24 @@
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
+#include <pcl/features/integral_image_normal.h>
+#include <pcl/segmentation/organized_multi_plane_segmentation.h>
+#include <pcl/segmentation/edge_aware_plane_comparator.h>
+#include <pcl/segmentation/euclidean_cluster_comparator.h>
+//#include <pcl/surface/mls.h>
+#include <pcl/surface/bilateral_upsampling.h>
+#include <pcl/visualization/cloud_viewer.h>
+#include <pcl/visualization/image_viewer.h>
+#include <pcl/segmentation/organized_connected_component_segmentation.h>
+#include <pcl/features/normal_3d.h>
+
+#include "opencv2/opencv.hpp"
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/nonfree/features2d.hpp>
+#include <cv_bridge/cv_bridge.h>
+#include <iostream>
+
 
 //Segmentation parameters
 #define MIN_CLUSTER_SIZE 200
@@ -90,7 +109,7 @@ private:
   * @param cloudInPtr Input point cloud
   * @param cloudOutPtr Resulting filtered point cloud
   */
-  void preprocessPointCloud(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
+  void preprocessPointCloud (const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudOutPtr);
 
   /**
@@ -98,7 +117,9 @@ private:
   * @param pointCloudPtr Input/output point cloud from which to detect and remove a table surface
   * @return height of the removed plane
   */
-  float removeTableSurface(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloudPtr);
+  float removeTableSurface(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pointCloudPtr,
+      pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr, pcl::PointCloud<pcl::Label>::Ptr labels,
+      std::vector<bool>* excludeLabels);
 
   /**
   * \brief Segment objects within a bounded volume
@@ -108,7 +129,13 @@ private:
   * @return A list of PointIndices representing each segmented cluster within the output point cloud
   */
   std::vector<pcl::PointIndices> boundAndExtractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudOutPtr, pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr boundingCondition);
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudOutPtr, pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr boundingCondition,
+      pcl::PointCloud<pcl::Normal>::Ptr normalCloudPtr, pcl::PointCloud<pcl::Label>::Ptr labels,
+      std::vector<bool>* excludeLabels);
+
+
+  void extractOrganizedClustersImage(const pcl::PointCloud<pcl::PointXYZRGB>::Ptr cloudInPtr,
+      const std::vector<int> &indices, sensor_msgs::Image::Ptr im);
 
    /**
    * \brief Callback for recognizing any unrecognized segmented objects
@@ -138,6 +165,7 @@ private:
    * \brief Clears segmented objects and publishes to the object list and visualization topics
    */
   void clearObjects();
+
 };
 
 #endif
