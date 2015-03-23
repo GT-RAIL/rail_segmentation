@@ -24,6 +24,7 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
+#include <pcl/filters/conditional_removal.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
@@ -144,8 +145,8 @@ private:
    * \param z_max The maximum height of a surface to remove.
    * \return The average height of the surface that was removed or negtive infinity if no valid surface was found.
    */
-  double findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::PointCloud<pcl::PointXYZRGB> &out,
-      const double z_min, const double z_max) const;
+  double findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      const double z_min, const double z_max, pcl::IndicesPtr indices_out) const;
 
   /*!
    * \brief Find clusters in a point cloud.
@@ -155,7 +156,14 @@ private:
    * \param pc The point cloud to search for point clouds from.
    * \param clusters The indices of each cluster in the point cloud.
    */
-  void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc, std::vector<pcl::PointIndices> &clusters) const;
+  void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      std::vector<pcl::PointIndices> &clusters) const;
+
+  void inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const;
+
+  void extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const;
 
   /*!
    * \brief Find the average Z value of the point vector.

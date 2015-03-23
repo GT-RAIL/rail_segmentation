@@ -17,8 +17,8 @@
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 
-#include <pcl/filters/conditional_removal.h>
 #include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
@@ -38,7 +38,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   // grab any parameters we need
   private_node_.getParam("debug", debug_);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
-  private_node_.getParam("mapping_config", zones_file);
+  private_node_.getParam("zones_config", zones_file);
 
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
@@ -167,7 +167,8 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
   // republish
   segmented_objects_pub_.publish(object_list_);
   // delete markers
-  for (size_t i = 0; i< markers_.markers.size(); i++) {
+  for (size_t i = 0; i < markers_.markers.size(); i++)
+  {
     markers_.markers[i].action = visualization_msgs::Marker::DELETE;
   }
   markers_pub_.publish(markers_);
@@ -212,86 +213,89 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   ROS_INFO("Segmenting in zone '%s'.", zone.getName().c_str());
 
   // transform the point cloud to the fixed frame
-  pcl::PointCloud<pcl::PointXYZRGB> transformed_pc;
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
   // lock on the point cloud
   {
     boost::mutex::scoped_lock lock(pc_mutex_);
     // perform the copy/transform using TF
     pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), pc_, pc_.header.frame_id,
-        transformed_pc, tf_);
-    transformed_pc.header.frame_id = zone.getBoundingFrameID();
-    transformed_pc.header.seq = pc_.header.seq;
-    transformed_pc.header.stamp = pc_.header.stamp;
+        *transformed_pc, tf_);
+    transformed_pc->header.frame_id = zone.getBoundingFrameID();
+    transformed_pc->header.seq = pc_.header.seq;
+    transformed_pc->header.stamp = pc_.header.stamp;
   }
 
-  // remove invalid (NaN) values from the cloud
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr filtered_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  vector<int> indices;
-  pcl::removeNaNFromPointCloud(transformed_pc, *filtered_pc, indices);
+  // start with every index
+  pcl::IndicesPtr filter_indices(new vector<int>);
+  filter_indices->resize(transformed_pc->points.size());
+  for (size_t i = 0; i < transformed_pc->points.size(); i++)
+  {
+    filter_indices->at(i) = i;
+  }
 
   // check if we need to remove a surface
   double z_min = zone.getZMin();
   if (zone.getRemoveSurface())
   {
-    double z_surface = this->findSurface(*filtered_pc, *filtered_pc, zone.getZMin(), zone.getZMax());
+    double z_surface = this->findSurface(transformed_pc, filter_indices, zone.getZMin(), zone.getZMax(),
+        filter_indices);
     // check the new bound for Z
     z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
   }
 
-  // check bounding areas
-  pcl::ConditionAnd<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionAnd<pcl::PointXYZRGB>);
+  // check bounding areas (bound the inverse of what we want since PCL will return the removed indicies)
+  pcl::ConditionOr<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionOr<pcl::PointXYZRGB>);
   if (z_min > -numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::GT, z_min))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::LE, z_min))
     );
   }
   if (zone.getZMax() < numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::LT, zone.getZMax()))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::GE, zone.getZMax()))
     );
   }
   if (zone.getYMin() > -numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::GT, zone.getYMin()))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::LE, zone.getYMin()))
     );
   }
   if (zone.getYMax() < numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::LT, zone.getYMax()))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::GE, zone.getYMax()))
     );
   }
   if (zone.getXMin() > -numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::GT, zone.getXMin()))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::LE, zone.getXMin()))
     );
   }
   if (zone.getXMax() < numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
-        new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::LT, zone.getXMax()))
+        new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::GE, zone.getXMax()))
     );
   }
 
   // remove past the given bounds
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr bounded_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  pcl::ConditionalRemoval<pcl::PointXYZRGB> bounds_removal(bounds);
-  bounds_removal.setInputCloud(filtered_pc);
-  bounds_removal.filter(*bounded_pc);
+  this->inverseBound(transformed_pc, filter_indices, bounds, filter_indices);
 
   // publish the filtered and bounded PC pre-segmentation
   if (debug_)
   {
-    debug_pub_.publish(bounded_pc);
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr debug_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
+    this->extract(transformed_pc, filter_indices, debug_pc);
+    debug_pub_.publish(debug_pc);
   }
 
   // extract clusters
   vector<pcl::PointIndices> clusters;
-  this->extractClusters(bounded_pc, clusters);
+  this->extractClusters(transformed_pc, filter_indices, clusters);
 
 
   if (clusters.size() > 0)
@@ -305,12 +309,12 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
       for (size_t j = 0; j < clusters[i].indices.size(); j++)
       {
-        cluster->points.push_back(bounded_pc->points[clusters[i].indices[j]]);
+        cluster->points.push_back(transformed_pc->points[clusters[i].indices[j]]);
       }
       cluster->width = cluster->points.size();
       cluster->height = 1;
       cluster->is_dense = true;
-      cluster->header.frame_id = bounded_pc->header.frame_id;
+      cluster->header.frame_id = transformed_pc->header.frame_id;
 
       // check if we need to transform to a different frame
       pcl::PCLPointCloud2::Ptr converted(new pcl::PCLPointCloud2);
@@ -369,8 +373,8 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   return true;
 }
 
-double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::PointCloud<pcl::PointXYZRGB> &out,
-    const double z_min, const double z_max) const
+double Segmenter::findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+    const double z_min, const double z_max, pcl::IndicesPtr indices_out) const
 {
   // use a plane (SAC) segmenter
   pcl::SACSegmentation<pcl::PointXYZRGB> plane_seg;
@@ -384,8 +388,9 @@ double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::
   plane_seg.setDistanceThreshold(SAC_DISTANCE_THRESHOLD);
 
   // create a copy to work with
-  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_copy(new pcl::PointCloud<pcl::PointXYZRGB>(in));
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc_copy(new pcl::PointCloud<pcl::PointXYZRGB>(*in));
   plane_seg.setInputCloud(pc_copy);
+  plane_seg.setIndices(indices_in);
 
   // Check point height -- if the plane is too low or high, extract another
   while (true)
@@ -401,42 +406,54 @@ double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB> &in, pcl::
     if (inliers_ptr->indices.size() == 0)
     {
       ROS_WARN("Could not find a surface above %fm and below %fm.", z_min, z_max);
+      *indices_out = *indices_in;
       return -numeric_limits<double>::infinity();
     }
 
     // remove the plane
     pcl::PointCloud<pcl::PointXYZRGB> plane;
-    pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+    pcl::ExtractIndices<pcl::PointXYZRGB> extract(true);
     extract.setInputCloud(pc_copy);
     extract.setIndices(inliers_ptr);
     extract.setNegative(false);
     extract.filter(plane);
-    // extract everything else and try again
-    extract.setNegative(true);
-    extract.filter(*pc_copy);
+    extract.setKeepOrganized(true);
+    plane_seg.setIndices(extract.getRemovedIndices());
 
     // check the height
     double height = this->averageZ(plane.points);
     if (height >= z_min && height <= z_max)
     {
       ROS_INFO("Surface found at %fm.", height);
-      out = *pc_copy;
+      *indices_out = *plane_seg.getIndices();
       return height;
     }
   }
 }
 
-void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc,
+void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
     vector<pcl::PointIndices> &clusters) const
 {
+  // ignore NaN and infinite values
+  pcl::IndicesPtr valid(new vector<int>);
+  for (size_t i = 0; i < indices_in->size(); i++)
+  {
+    if (pcl_isfinite (in->points[indices_in->at(i)].x) & pcl_isfinite (in->points[indices_in->at(i)].y) &
+        pcl_isfinite (in->points[indices_in->at(i)].z))
+    {
+      valid->push_back(indices_in->at(i));
+    }
+  }
+
   pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> seg;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
-  kd_tree->setInputCloud(pc);
+  kd_tree->setInputCloud(in);
   seg.setClusterTolerance(CLUSTER_TOLERANCE);
   seg.setMinClusterSize(MIN_CLUSTER_SIZE);
   seg.setMaxClusterSize(MAX_CLUSTER_SIZE);
   seg.setSearchMethod(kd_tree);
-  seg.setInputCloud(pc);
+  seg.setInputCloud(in);
+  seg.setIndices(valid);
   seg.extract(clusters);
 }
 
@@ -528,4 +545,26 @@ visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr 
   }
 
   return marker;
+}
+
+void Segmenter::extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const
+{
+  pcl::ExtractIndices<pcl::PointXYZRGB> extract;
+  extract.setInputCloud(in);
+  extract.setIndices(indices_in);
+  extract.setKeepOrganized(true);
+  extract.filter(*out);
+}
+
+void Segmenter::inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+    pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const
+{
+  // use a temp point cloud to extract the indices
+  pcl::PointCloud<pcl::PointXYZRGB> tmp;
+  pcl::ConditionalRemoval<pcl::PointXYZRGB> removal(conditions, true);
+  removal.setInputCloud(in);
+  removal.setIndices(indices_in);
+  removal.filter(tmp);
+  *indices_out = *removal.getRemovedIndices();
 }
