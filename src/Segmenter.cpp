@@ -517,10 +517,8 @@ visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr 
   // set the type of marker and our color of choice
   marker.type = visualization_msgs::Marker::CUBE_LIST;
   // TODO maybe use average RGB value of cluster?
-  marker.color.r = ((float) (rand()) / (float) (RAND_MAX)) / 3.0 + 0.66;
-  marker.color.g = ((float) (rand()) / (float) (RAND_MAX)) / 4.0;
-  marker.color.b = ((float) (rand()) / (float) (RAND_MAX)) / 5.0;
   marker.color.a = 1.0;
+
 
   // downsample point cloud for visualization
   pcl::PCLPointCloud2 downsampled;
@@ -537,12 +535,25 @@ visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr 
 
   // place in the marker message
   marker.points.resize(pc_msg.points.size());
+  int r = 0, g = 0, b = 0;
   for (size_t j = 0; j < pc_msg.points.size(); j++)
   {
     marker.points[j].x = pc_msg.points[j].x;
     marker.points[j].y = pc_msg.points[j].y;
     marker.points[j].z = pc_msg.points[j].z;
+
+    // use average RGB
+    uint32_t rgb = *reinterpret_cast<int *>(&pc_msg.channels[0].values[j]);
+    r += (int) ((rgb >> 16) & 0x0000ff);
+    g += (int) ((rgb >> 8) & 0x0000ff);
+    b += (int) ((rgb) & 0x0000ff);
   }
+
+  // set average RGB
+  marker.color.r = ((float) r / (float) pc_msg.points.size()) / 255.0;
+  marker.color.g = ((float) g / (float) pc_msg.points.size()) / 255.0;
+  marker.color.b = ((float) b / (float) pc_msg.points.size()) / 255.0;
+  marker.color.a = 1.0;
 
   return marker;
 }
