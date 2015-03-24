@@ -17,6 +17,7 @@
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_segmentation/RemoveObject.h>
 #include <ros/ros.h>
+#include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
@@ -96,28 +97,15 @@ private:
   void pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc);
 
   /*!
-   * \brief Callback for the main segmentation request.
+   * \brief Determine the current zone based on the latest state of the TF tree.
    *
-   * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
-   * array of the resulting segmentation.
+   * Checks each segmenation zone criteria based on teh latest state of the TF tree and returns a reference to that
+   * zone. If multiple zones are met, the first is returned. If no valid zone is found, the first zone is returned
+   * and a warning is sent to ROS_WARN.
    *
-   * \param req The empty request (unused).
-   * \param res The empty response (unused).
-   * \return Returns true if the segmentation was successful.
+   * \return The zone that matches the current state of the TF tree.
    */
-  bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
-
-  /*!
-   * \brief Callback for the clear request.
-   *
-   * Clears the current segmented object list. This will publish both an empty segmented object list and a marker
-   * array with delete actions from the last segmentation request.
-   *
-   * \param req The empty request (unused).
-   * \param res The empty response (unused).
-   * \return Will always return true.
-   */
-  bool clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+  const SegmentationZone &getCurrentZone() const;
 
   /*!
    * \brief Callback for the remove object request.
@@ -133,6 +121,30 @@ private:
       rail_segmentation::RemoveObject::Response &res);
 
   /*!
+   * \brief Callback for the clear request.
+   *
+   * Clears the current segmented object list. This will publish both an empty segmented object list and a marker
+   * array with delete actions from the last segmentation request.
+   *
+   * \param req The empty request (unused).
+   * \param res The empty response (unused).
+   * \return Will always return true.
+   */
+  bool clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+
+  /*!
+   * \brief Callback for the main segmentation request.
+   *
+   * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+   * array of the resulting segmentation.
+   *
+   * \param req The empty request (unused).
+   * \param res The empty response (unused).
+   * \return Returns true if the segmentation was successful.
+   */
+  bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
+
+  /*!
    * \brief Find and remove a surface from the given point cloud.
    *
    * Find a surface in the input point cloud and attempt to remove it. The surface must be within the bounds provided
@@ -140,9 +152,10 @@ private:
    * effect is made to the output cloud and negative infinity is returned.
    *
    * \param in The input point cloud.
-   * \param out The output point cloud.
+   * \param indices_in The indices in the point cloud to consider.
    * \param z_min The minimum height of a surface to remove.
    * \param z_max The maximum height of a surface to remove.
+   * \param indices_out The set of points that are not part of the surface.
    * \return The average height of the surface that was removed or negtive infinity if no valid surface was found.
    */
   double findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
@@ -153,15 +166,35 @@ private:
    *
    * Find the clusters in the given point cloud using euclidean cluster extraction and a KD search tree.
    *
-   * \param pc The point cloud to search for point clouds from.
+   * \param in The point cloud to search for point clouds from.
+   * \param indices_in The indices in the point cloud to consider.
    * \param clusters The indices of each cluster in the point cloud.
    */
   void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
       std::vector<pcl::PointIndices> &clusters) const;
 
+  /*!
+   * \brief Bound a point cloud based on the inverse of a set of conditions.
+   *
+   * Extract a new point cloud based on the inverse of a set of conditions.
+   *
+   * \param in The point cloud to take points from.
+   * \param indices_in The indices in the point cloud to consider.
+   * \param conditions The conditions specifying which points to ignore.
+   * \param indices_out The set of points that pass the condition test.
+   */
   void inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
       pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const;
 
+  /*!
+   * \brief Extract a new point cloud based on the given indices.
+   *
+   * Extract a new point cloud from the given indices. The resulting point cloud will be unorganized.
+   *
+   * \param in The point cloud to take points from.
+   * \param indices_in The indices to create a new point cloud from.
+   * \param out The point cloud to fill.
+   */
   void extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const;
 
@@ -183,18 +216,19 @@ private:
    * \param pc The PCL point cloud to create a marker for.
    * \return The corresponding marker for the given point cloud.
    */
-  visualization_msgs::Marker createMaker(pcl::PCLPointCloud2::ConstPtr pc) const;
+  visualization_msgs::Marker createMarker(pcl::PCLPointCloud2::ConstPtr pc) const;
 
   /*!
-   * \brief Determine the current zone based on the latest state of the TF tree.
+   * \brief Create a cropped image of the segmented object.
    *
-   * Checks each segmenation zone criteria based on teh latest state of the TF tree and returns a reference to that
-   * zone. If multiple zones are met, the first is returned. If no valid zone is found, the first zone is returned
-   * and a warning is sent to ROS_WARN.
+   * Creates a new ROS image based on the cropped segmented object.
    *
-   * \return The zone that matches the current state of the TF tree.
+   * \param in The original organized point cloud.
+   * \param cluster The indicies of the current cluster in the point cloud.
+   * \return The corresponding image for the given cluster.
    */
-  const SegmentationZone &getCurrentZone() const;
+  sensor_msgs::Image createImage(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
+      const pcl::PointIndices &cluster) const;
 
   /*! The debug and okay check flags. */
   bool debug_, okay_;
@@ -208,7 +242,7 @@ private:
   /*! Services advertised by this node */
   ros::ServiceServer segment_srv_, clear_srv_, remove_object_srv_;
   /*! Publishers used in the node. */
-  ros::Publisher segmented_objects_pub_, markers_pub_, debug_pub_;
+  ros::Publisher segmented_objects_pub_, markers_pub_, debug_pc_pub_, debug_img_pub_;
   /*! Subscribers used in the node. */
   ros::Subscriber point_cloud_sub_;
   /*! Main transform listener. */

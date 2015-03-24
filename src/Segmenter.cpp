@@ -15,6 +15,7 @@
 #include <pcl_ros/transforms.h>
 #include <ros/package.h>
 #include <sensor_msgs/point_cloud_conversion.h>
+#include <sensor_msgs/image_encodings.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 
 #include <pcl/filters/extract_indices.h>
@@ -52,7 +53,8 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   // setup a debug publisher if we need it
   if (debug_)
   {
-    debug_pub_ = private_node_.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("debug", 1);
+    debug_pc_pub_ = private_node_.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("debug_pc", 1);
+    debug_img_pub_ = private_node_.advertise<sensor_msgs::Image>("debug_img", 1);
   }
 
   // check the YAML version
@@ -155,25 +157,31 @@ void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc)
   pc_ = pc;
 }
 
-bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+const SegmentationZone &Segmenter::getCurrentZone() const
 {
-  // lock for the messages
-  boost::mutex::scoped_lock lock(msg_mutex_);
-  // empty the list
-  object_list_.objects.clear();
-  // set header information
-  object_list_.header.seq++;
-  object_list_.header.stamp = ros::Time::now();
-  // republish
-  segmented_objects_pub_.publish(object_list_);
-  // delete markers
-  for (size_t i = 0; i < markers_.markers.size(); i++)
+  // check each zone
+  for (size_t i = 0; i < zones_.size(); i++)
   {
-    markers_.markers[i].action = visualization_msgs::Marker::DELETE;
+    // get the current TF information
+    geometry_msgs::TransformStamped tf = tf_buffer_.lookupTransform(zones_[i].getParentFrameID(),
+        zones_[i].getChildFrameID(), ros::Time(0));
+
+    // convert to a Matrix3x3 to get RPY
+    tf2::Matrix3x3 mat(tf2::Quaternion(tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z,
+        tf.transform.rotation.w));
+    double roll, pitch, yaw;
+    mat.getRPY(roll, pitch, yaw);
+
+    // check if all the bounds meet
+    if (roll >= zones_[i].getRollMin() && pitch >= zones_[i].getPitchMin() && yaw >= zones_[i].getYawMin() &&
+        roll <= zones_[i].getRollMax() && pitch <= zones_[i].getPitchMax() && yaw <= zones_[i].getYawMax())
+    {
+      return zones_[i];
+    }
   }
-  markers_pub_.publish(markers_);
-  markers_.markers.clear();
-  return true;
+
+  ROS_WARN("Current state not in a valid segmentation zone. Defaulting to first zone.");
+  return zones_[0];
 }
 
 bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &req,
@@ -201,6 +209,27 @@ bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &r
     ROS_ERROR("Attempted to remove index %d from list of size %d.", req.index, (int) object_list_.objects.size());
     return false;
   }
+}
+
+bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
+{
+  // lock for the messages
+  boost::mutex::scoped_lock lock(msg_mutex_);
+  // empty the list
+  object_list_.objects.clear();
+  // set header information
+  object_list_.header.seq++;
+  object_list_.header.stamp = ros::Time::now();
+  // republish
+  segmented_objects_pub_.publish(object_list_);
+  // delete markers
+  for (size_t i = 0; i < markers_.markers.size(); i++)
+  {
+    markers_.markers[i].action = visualization_msgs::Marker::DELETE;
+  }
+  markers_pub_.publish(markers_);
+  markers_.markers.clear();
+  return true;
 }
 
 bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
@@ -290,22 +319,21 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   {
     pcl::PointCloud<pcl::PointXYZRGB>::Ptr debug_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
     this->extract(transformed_pc, filter_indices, debug_pc);
-    debug_pub_.publish(debug_pc);
+    debug_pc_pub_.publish(debug_pc);
   }
 
   // extract clusters
   vector<pcl::PointIndices> clusters;
   this->extractClusters(transformed_pc, filter_indices, clusters);
 
-
   if (clusters.size() > 0)
   {
     // lock for the messages
     boost::mutex::scoped_lock lock(msg_mutex_);
-
     // check each cluster
     for (size_t i = 0; i < clusters.size(); i++)
     {
+      // grab the points we need
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
       for (size_t j = 0; j < clusters[i].indices.size(); j++)
       {
@@ -337,11 +365,20 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       rail_manipulation_msgs::SegmentedObject segmented_object;
       segmented_object.recognized = false;
 
+      // set the RGB image
+      segmented_object.image = this->createImage(transformed_pc, clusters[i]);
+
+      // check if we want to publish the image
+      if (debug_)
+      {
+        debug_img_pub_.publish(segmented_object.image);
+      }
+
       // set the point cloud
       pcl_conversions::fromPCL(*converted, segmented_object.point_cloud);
       segmented_object.point_cloud.header.stamp = ros::Time::now();
       // create a marker and set the extra fields
-      segmented_object.marker = this->createMaker(converted);
+      segmented_object.marker = this->createMarker(converted);
       segmented_object.marker.id = i;
 
       // set the centroid
@@ -438,8 +475,8 @@ void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, 
   pcl::IndicesPtr valid(new vector<int>);
   for (size_t i = 0; i < indices_in->size(); i++)
   {
-    if (pcl_isfinite (in->points[indices_in->at(i)].x) & pcl_isfinite (in->points[indices_in->at(i)].y) &
-        pcl_isfinite (in->points[indices_in->at(i)].z))
+    if (pcl_isfinite(in->points[indices_in->at(i)].x) & pcl_isfinite(in->points[indices_in->at(i)].y) &
+        pcl_isfinite(in->points[indices_in->at(i)].z))
     {
       valid->push_back(indices_in->at(i));
     }
@@ -457,44 +494,69 @@ void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, 
   seg.extract(clusters);
 }
 
-double Segmenter::averageZ(const vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB> > &v) const
+sensor_msgs::Image Segmenter::createImage(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
+    const pcl::PointIndices &cluster) const
 {
-  double avg = 0.0;
-  for (size_t i = 0; i < v.size(); i++)
+  // determine the bounds of the cluster
+  int row_min = numeric_limits<int>::max();
+  int row_max = numeric_limits<int>::min();
+  int col_min = numeric_limits<int>::max();
+  int col_max = numeric_limits<int>::min();
+
+  for (size_t i = 0; i < cluster.indices.size(); i++)
   {
-    avg += v[i].z;
-  }
-  return (avg / (double) v.size());
-}
+    // calculate row and column of this point
+    int row = cluster.indices[i] / in->width;
+    int col = cluster.indices[i] - (row * in->width);
 
-const SegmentationZone &Segmenter::getCurrentZone() const
-{
-  // check each zone
-  for (size_t i = 0; i < zones_.size(); i++)
-  {
-    // get the current TF information
-    geometry_msgs::TransformStamped tf = tf_buffer_.lookupTransform(zones_[i].getParentFrameID(),
-        zones_[i].getChildFrameID(), ros::Time(0));
-
-    // convert to a Matrix3x3 to get RPY
-    tf2::Matrix3x3 mat(tf2::Quaternion(tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z,
-        tf.transform.rotation.w));
-    double roll, pitch, yaw;
-    mat.getRPY(roll, pitch, yaw);
-
-    // check if all the bounds meet
-    if (roll >= zones_[i].getRollMin() && pitch >= zones_[i].getPitchMin() && yaw >= zones_[i].getYawMin() &&
-        roll <= zones_[i].getRollMax() && pitch <= zones_[i].getPitchMax() && yaw <= zones_[i].getYawMax())
+    if (row < row_min)
     {
-      return zones_[i];
+      row_min = row;
+    } else if (row > row_max)
+    {
+      row_max = row;
+    }
+    if (col < col_min)
+    {
+      col_min = col;
+    } else if (col > col_max)
+    {
+      col_max = col;
     }
   }
 
-  ROS_WARN("Current state not in a valid segmentation zone. Defaulting to first zone.");
-  return zones_[0];
+  // create a ROS image
+  sensor_msgs::Image msg;
+
+  // set basic information
+  msg.header.frame_id = in->header.frame_id;
+  msg.header.stamp = ros::Time::now();
+  msg.width = col_max - col_min;
+  msg.height = row_max - row_min;
+  // RGB data
+  msg.step = 3 * msg.width;
+  msg.data.resize(msg.step * msg.height);
+  msg.encoding = sensor_msgs::image_encodings::BGR8;
+
+  // extract the points
+  for (int h = 0; h < msg.height; h++)
+  {
+    for (int w = 0; w < msg.width; w++)
+    {
+      // extract RGB information
+      const pcl::PointXYZRGB &point = in->at(col_min + w, row_min + h);
+      // set RGB data
+      int index = (msg.step * h) + (w * 3);
+      msg.data[index] = point.b;
+      msg.data[index + 1] = point.g;
+      msg.data[index + 2] = point.r;
+    }
+  }
+
+  return msg;
 }
 
-visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr pc) const
+visualization_msgs::Marker Segmenter::createMarker(pcl::PCLPointCloud2::ConstPtr pc) const
 {
   visualization_msgs::Marker marker;
   // set header field
@@ -516,9 +578,7 @@ visualization_msgs::Marker Segmenter::createMaker(pcl::PCLPointCloud2::ConstPtr 
 
   // set the type of marker and our color of choice
   marker.type = visualization_msgs::Marker::CUBE_LIST;
-  // TODO maybe use average RGB value of cluster?
   marker.color.a = 1.0;
-
 
   // downsample point cloud for visualization
   pcl::PCLPointCloud2 downsampled;
@@ -564,7 +624,6 @@ void Segmenter::extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::Ind
   pcl::ExtractIndices<pcl::PointXYZRGB> extract;
   extract.setInputCloud(in);
   extract.setIndices(indices_in);
-  extract.setKeepOrganized(true);
   extract.filter(*out);
 }
 
@@ -578,4 +637,14 @@ void Segmenter::inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl
   removal.setIndices(indices_in);
   removal.filter(tmp);
   *indices_out = *removal.getRemovedIndices();
+}
+
+double Segmenter::averageZ(const vector<pcl::PointXYZRGB, Eigen::aligned_allocator<pcl::PointXYZRGB> > &v) const
+{
+  double avg = 0.0;
+  for (size_t i = 0; i < v.size(); i++)
+  {
+    avg += v[i].z;
+  }
+  return (avg / (double) v.size());
 }

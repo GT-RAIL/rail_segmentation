@@ -16,7 +16,7 @@
   parent_frame_id: "base_footprint"
   child_frame_id: "camera_depth_frame"
   bounding_frame_id: "base_footprint"
-  segmentation_frame_id: "base_footprint"
+  segmentation_frame_id: "base_link"
   roll_min: 0.00
   roll_max: 2.00
   pitch_min: 0.95
@@ -26,6 +26,7 @@
   y_min: -0.30
   y_max: 0.30
   z_min: 0.745
+  z_max: 1.5
 - name: "Back Surface"
   remove_surface: true
   parent_frame_id: "base_footprint"
