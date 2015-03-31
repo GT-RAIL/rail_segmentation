@@ -2,6 +2,14 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.1 (2015-03-31)
+------------------
+* segmentation debug is now latched
+* Merge branch 'develop' of github.com:WPI-RAIL/rail_segmentation into develop
+* redid zones for default
+* Fixed centroid calculation when the segmentation frame doesn't match the bounding box frame
+* Contributors: David Kent, Russell Toris
+
 0.1.0 (2015-03-24)
 ------------------
 * added RGB image to message
