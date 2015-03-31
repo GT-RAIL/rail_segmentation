@@ -53,8 +53,8 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   // setup a debug publisher if we need it
   if (debug_)
   {
-    debug_pc_pub_ = private_node_.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("debug_pc", 1);
-    debug_img_pub_ = private_node_.advertise<sensor_msgs::Image>("debug_img", 1);
+    debug_pc_pub_ = private_node_.advertise<pcl::PointCloud<pcl::PointXYZRGB> >("debug_pc", 1, true);
+    debug_img_pub_ = private_node_.advertise<sensor_msgs::Image>("debug_img", 1, true);
   }
 
   // check the YAML version
@@ -345,17 +345,17 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       cluster->header.frame_id = transformed_pc->header.frame_id;
 
       // check if we need to transform to a different frame
-      pcl::PointCloud<pcl::PointXYZRGB> tmp;
+      pcl::PointCloud<pcl::PointXYZRGB> transformed_cluster;
       pcl::PCLPointCloud2::Ptr converted(new pcl::PCLPointCloud2);
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
       {
         // perform the copy/transform using TF
         pcl_ros::transformPointCloud(zone.getSegmentationFrameID(), ros::Time(0), *cluster, cluster->header.frame_id,
-            tmp, tf_);
-        tmp.header.frame_id = zone.getSegmentationFrameID();
-        tmp.header.seq = cluster->header.seq;
-        tmp.header.stamp = cluster->header.stamp;
-        pcl::toPCLPointCloud2(tmp, *converted);
+            transformed_cluster, tf_);
+        transformed_cluster.header.frame_id = zone.getSegmentationFrameID();
+        transformed_cluster.header.seq = cluster->header.seq;
+        transformed_cluster.header.stamp = cluster->header.stamp;
+        pcl::toPCLPointCloud2(transformed_cluster, *converted);
       } else
       {
         pcl::toPCLPointCloud2(*cluster, *converted);
@@ -384,9 +384,12 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       // set the centroid
       Eigen::Vector4f centroid;
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
-        pcl::compute3DCentroid(tmp, centroid);
-      else
+      {
+        pcl::compute3DCentroid(transformed_cluster, centroid);
+      } else
+      {
         pcl::compute3DCentroid(*cluster, centroid);
+      }
       segmented_object.centroid.x = centroid[0];
       segmented_object.centroid.y = centroid[1];
       segmented_object.centroid.z = centroid[2];
