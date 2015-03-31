@@ -345,11 +345,11 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       cluster->header.frame_id = transformed_pc->header.frame_id;
 
       // check if we need to transform to a different frame
+      pcl::PointCloud<pcl::PointXYZRGB> tmp;
       pcl::PCLPointCloud2::Ptr converted(new pcl::PCLPointCloud2);
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
       {
         // perform the copy/transform using TF
-        pcl::PointCloud<pcl::PointXYZRGB> tmp;
         pcl_ros::transformPointCloud(zone.getSegmentationFrameID(), ros::Time(0), *cluster, cluster->header.frame_id,
             tmp, tf_);
         tmp.header.frame_id = zone.getSegmentationFrameID();
@@ -383,7 +383,10 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
 
       // set the centroid
       Eigen::Vector4f centroid;
-      pcl::compute3DCentroid(*cluster, centroid);
+      if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
+        pcl::compute3DCentroid(tmp, centroid);
+      else
+        pcl::compute3DCentroid(*cluster, centroid);
       segmented_object.centroid.x = centroid[0];
       segmented_object.centroid.y = centroid[1];
       segmented_object.centroid.z = centroid[2];
