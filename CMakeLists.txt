@@ -94,4 +94,5 @@ install(DIRECTORY include/${PROJECT_NAME}/
 ## Copy config files
 install(DIRECTORY config/
   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/config
+  FILES_MATCHING PATTERN "*.hpp" PATTERN "*.yaml"
 )
