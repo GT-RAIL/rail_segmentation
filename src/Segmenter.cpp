@@ -416,7 +416,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   return true;
 }
 
-double Segmenter::findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+double Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
     const double z_min, const double z_max, pcl::IndicesPtr indices_out) const
 {
   // use a plane (SAC) segmenter
@@ -474,7 +474,7 @@ double Segmenter::findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pc
   }
 }
 
-void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
     vector<pcl::PointIndices> &clusters) const
 {
   // ignore NaN and infinite values
@@ -500,7 +500,7 @@ void Segmenter::extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, 
   seg.extract(clusters);
 }
 
-sensor_msgs::Image Segmenter::createImage(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
+sensor_msgs::Image Segmenter::createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
     const pcl::PointIndices &cluster) const
 {
   // determine the bounds of the cluster
@@ -562,7 +562,7 @@ sensor_msgs::Image Segmenter::createImage(pcl::PointCloud<pcl::PointXYZRGB>::Con
   return msg;
 }
 
-visualization_msgs::Marker Segmenter::createMarker(pcl::PCLPointCloud2::ConstPtr pc) const
+visualization_msgs::Marker Segmenter::createMarker(const pcl::PCLPointCloud2::ConstPtr pc) const
 {
   visualization_msgs::Marker marker;
   // set header field
@@ -624,8 +624,8 @@ visualization_msgs::Marker Segmenter::createMarker(pcl::PCLPointCloud2::ConstPtr
   return marker;
 }
 
-void Segmenter::extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const
+void Segmenter::extract(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+    const pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const
 {
   pcl::ExtractIndices<pcl::PointXYZRGB> extract;
   extract.setInputCloud(in);
@@ -633,8 +633,8 @@ void Segmenter::extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::Ind
   extract.filter(*out);
 }
 
-void Segmenter::inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
-    pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const
+void Segmenter::inverseBound(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+    const pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const
 {
   // use a temp point cloud to extract the indices
   pcl::PointCloud<pcl::PointXYZRGB> tmp;

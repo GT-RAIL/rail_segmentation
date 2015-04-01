@@ -158,7 +158,7 @@ private:
    * \param indices_out The set of points that are not part of the surface.
    * \return The average height of the surface that was removed or negtive infinity if no valid surface was found.
    */
-  double findSurface(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+  double findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
       const double z_min, const double z_max, pcl::IndicesPtr indices_out) const;
 
   /*!
@@ -170,7 +170,7 @@ private:
    * \param indices_in The indices in the point cloud to consider.
    * \param clusters The indices of each cluster in the point cloud.
    */
-  void extractClusters(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+  void extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
       std::vector<pcl::PointIndices> &clusters) const;
 
   /*!
@@ -183,8 +183,8 @@ private:
    * \param conditions The conditions specifying which points to ignore.
    * \param indices_out The set of points that pass the condition test.
    */
-  void inverseBound(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
-      pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const;
+  void inverseBound(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      const pcl::ConditionBase<pcl::PointXYZRGB>::Ptr conditions, pcl::IndicesPtr indices_out) const;
 
   /*!
    * \brief Extract a new point cloud based on the given indices.
@@ -195,8 +195,8 @@ private:
    * \param indices_in The indices to create a new point cloud from.
    * \param out The point cloud to fill.
    */
-  void extract(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
-      pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const;
+  void extract(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in, pcl::IndicesConstPtr indices_in,
+      const pcl::PointCloud<pcl::PointXYZRGB>::Ptr out) const;
 
   /*!
    * \brief Find the average Z value of the point vector.
@@ -216,7 +216,7 @@ private:
    * \param pc The PCL point cloud to create a marker for.
    * \return The corresponding marker for the given point cloud.
    */
-  visualization_msgs::Marker createMarker(pcl::PCLPointCloud2::ConstPtr pc) const;
+  visualization_msgs::Marker createMarker(const pcl::PCLPointCloud2::ConstPtr pc) const;
 
   /*!
    * \brief Create a cropped image of the segmented object.
@@ -227,7 +227,7 @@ private:
    * \param cluster The indicies of the current cluster in the point cloud.
    * \return The corresponding image for the given cluster.
    */
-  sensor_msgs::Image createImage(pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
+  sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr in,
       const pcl::PointIndices &cluster) const;
 
   /*! The debug and okay check flags. */
