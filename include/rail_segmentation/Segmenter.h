@@ -94,7 +94,7 @@ private:
    *
    * \param pc The current point cloud message.
    */
-  void pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc);
+  void pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &pc);
 
   /*!
    * \brief Determine the current zone based on the latest state of the TF tree.
@@ -253,7 +253,7 @@ private:
   tf2_ros::TransformListener tf2_;
 
   /*! Latest point cloud. */
-  pcl::PointCloud<pcl::PointXYZRGB> pc_;
+  pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_;
   /*! Current object list. */
   rail_manipulation_msgs::SegmentedObjectList object_list_;
   /*! Current marker array. */

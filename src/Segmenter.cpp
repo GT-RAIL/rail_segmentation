@@ -149,7 +149,7 @@ bool Segmenter::okay() const
   return okay_;
 }
 
-void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB> &pc)
+void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &pc)
 {
   // lock for the point cloud
   boost::mutex::scoped_lock lock(pc_mutex_);
@@ -247,11 +247,11 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   {
     boost::mutex::scoped_lock lock(pc_mutex_);
     // perform the copy/transform using TF
-    pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), pc_, pc_.header.frame_id,
+    pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc_, pc_->header.frame_id,
         *transformed_pc, tf_);
     transformed_pc->header.frame_id = zone.getBoundingFrameID();
-    transformed_pc->header.seq = pc_.header.seq;
-    transformed_pc->header.stamp = pc_.header.stamp;
+    transformed_pc->header.seq = pc_->header.seq;
+    transformed_pc->header.stamp = pc_->header.stamp;
   }
 
   // start with every index
