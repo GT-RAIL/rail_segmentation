@@ -13,6 +13,9 @@
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
 #define RAIL_SEGMENTATION_SEGMENTER_H_
 
+// RAIL Segmentation
+#include "SegmentationZone.h"
+
 // ROS
 #include <pcl_ros/point_cloud.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
@@ -31,14 +34,11 @@
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-// C++ Standard Library
-#include <string>
-
 // BOOST
 #include <boost/thread/mutex.hpp>
 
-// RAIL Segmentation
-#include "SegmentationZone.h"
+// C++ Standard Library
+#include <string>
 
 namespace rail
 {
