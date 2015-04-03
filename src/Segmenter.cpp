@@ -10,20 +10,24 @@
  * \date March 17, 2015
  */
 
+// RAIL Segmentation
 #include <rail_segmentation/Segmenter.h>
 
+// ROS
 #include <pcl_ros/transforms.h>
 #include <ros/package.h>
 #include <sensor_msgs/point_cloud_conversion.h>
 #include <sensor_msgs/image_encodings.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 
+// PCL
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
 
+// YAML
 #include <yaml-cpp/yaml.h>
 
 using namespace std;
@@ -210,7 +214,7 @@ bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &r
     return true;
   } else
   {
-    ROS_ERROR("Attempted to remove index %d from list of size %d.", req.index, (int) object_list_.objects.size());
+    ROS_ERROR("Attempted to remove index %d from list of size %ld.", req.index, object_list_.objects.size());
     return false;
   }
 }

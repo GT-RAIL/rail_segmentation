@@ -13,6 +13,7 @@
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
 #define RAIL_SEGMENTATION_SEGMENTER_H_
 
+// ROS
 #include <pcl_ros/point_cloud.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_segmentation/RemoveObject.h>
@@ -25,13 +26,19 @@
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
+// PCL
 #include <pcl/filters/conditional_removal.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
-#include <boost/thread/mutex.hpp>
-#include <rail_segmentation/SegmentationZone.h>
+// C++ Standard Library
 #include <string>
+
+// BOOST
+#include <boost/thread/mutex.hpp>
+
+// RAIL Segmentation
+#include "SegmentationZone.h"
 
 namespace rail
 {
