@@ -67,7 +67,10 @@ add_executable(${PROJECT_NAME}
 )
 
 ## Add message build dependencies (needed for source build)
-add_dependencies(${PROJECT_NAME} ${PROJECT_NAME}_generate_messages_cpp rail_manipulation_msgs_generate_messages_cpp)
+add_dependencies(${PROJECT_NAME}
+  ${PROJECT_NAME}_generate_messages_cpp
+  rail_manipulation_msgs_generate_messages_cpp
+)
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}
@@ -83,12 +86,6 @@ target_link_libraries(${PROJECT_NAME}
 ## Mark executables and/or libraries for installation
 install(TARGETS ${PROJECT_NAME}
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-)
-
-## Copy header files
-install(DIRECTORY include/${PROJECT_NAME}/
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
-  FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
 )
 
 ## Copy config files
