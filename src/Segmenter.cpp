@@ -31,6 +31,9 @@ using namespace rail::segmentation;
 
 Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
+  // flag for the first point cloud coming in
+  first_pc_in_ = false;
+
   // set defaults
   debug_ = DEFAULT_DEBUG;
   string point_cloud_topic("/camera/depth_registered/points");
@@ -154,6 +157,7 @@ void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB>::Cons
   // lock for the point cloud
   boost::mutex::scoped_lock lock(pc_mutex_);
   // simply store the latest point cloud
+  first_pc_in_ = true;
   pc_ = pc;
 }
 
@@ -234,6 +238,16 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
 
 bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+  // check if we have a point cloud first
+  {
+    boost::mutex::scoped_lock lock(pc_mutex_);
+    if (!first_pc_in_)
+    {
+      ROS_WARN("No point cloud received yet. Ignoring segmentation request.");
+      return false;
+    }
+  }
+
   // clear the objects first
   this->clearCallback(req, res);
 
@@ -273,7 +287,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // check bounding areas (bound the inverse of what we want since PCL will return the removed indicies)
-  pcl::ConditionOr<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionOr<pcl::PointXYZRGB>);
+  pcl::ConditionOr<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionOr <pcl::PointXYZRGB>);
   if (z_min > -numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
@@ -323,7 +337,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // extract clusters
-  vector<pcl::PointIndices> clusters;
+  vector <pcl::PointIndices> clusters;
   this->extractClusters(transformed_pc, filter_indices, clusters);
 
   if (clusters.size() > 0)

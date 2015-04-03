@@ -230,8 +230,8 @@ private:
   sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
       const pcl::PointIndices &cluster) const;
 
-  /*! The debug and okay check flags. */
-  bool debug_, okay_;
+  /*! The debug, okay check, and first point cloud flags. */
+  bool debug_, okay_, first_pc_in_;
   /*! Mutex for locking on the point cloud and current messages. */
   boost::mutex pc_mutex_, msg_mutex_;
   /*! List of segmentation zones. */
