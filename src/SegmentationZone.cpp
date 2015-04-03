@@ -10,7 +10,7 @@
  */
 
 // RAIL Segmentation
-#include <rail_segmentation/SegmentationZone.h>
+#include "rail_segmentation/SegmentationZone.h"
 
 // C++ Standard Library
 #include <limits>

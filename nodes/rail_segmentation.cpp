@@ -9,7 +9,7 @@
  * \date March 17, 2015
  */
 
-#include <rail_segmentation/Segmenter.h>
+#include "rail_segmentation/Segmenter.h"
 
 using namespace std;
 using namespace rail::segmentation;
