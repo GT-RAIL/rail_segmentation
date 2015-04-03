@@ -2,6 +2,20 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.2 (2015-04-03)
+------------------
+* cmake cleanup
+* header cleanup
+* header cleanup
+* header cleanup
+* checks for incoming point cloud first
+* new lines added
+* new lines added
+* more const ptrs
+* moved to ptr based storage
+* const ptrs
+* Contributors: Russell Toris
+
 0.1.1 (2015-03-31)
 ------------------
 * segmentation debug is now latched
