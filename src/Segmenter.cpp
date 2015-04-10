@@ -21,6 +21,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 
 // PCL
+#include <pcl/common/common.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl/filters/voxel_grid.h>
@@ -291,7 +292,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // check bounding areas (bound the inverse of what we want since PCL will return the removed indicies)
-  pcl::ConditionOr<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionOr <pcl::PointXYZRGB>);
+  pcl::ConditionOr<pcl::PointXYZRGB>::Ptr bounds(new pcl::ConditionOr<pcl::PointXYZRGB>);
   if (z_min > -numeric_limits<double>::infinity())
   {
     bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
@@ -341,7 +342,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // extract clusters
-  vector <pcl::PointIndices> clusters;
+  vector<pcl::PointIndices> clusters;
   this->extractClusters(transformed_pc, filter_indices, clusters);
 
   if (clusters.size() > 0)
@@ -411,6 +412,14 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.centroid.x = centroid[0];
       segmented_object.centroid.y = centroid[1];
       segmented_object.centroid.z = centroid[2];
+
+      // calculate the bounding box
+      int x_idx, y_idx, z_idx;
+      Eigen::Vector4f min_pt, max_pt;
+      pcl::getMinMax3D(*cluster, min_pt, max_pt);
+      segmented_object.width = max_pt[0] - min_pt[0];
+      segmented_object.depth = max_pt[1] - min_pt[1];
+      segmented_object.height = max_pt[2] - min_pt[2];
 
       // add to the final list
       object_list_.objects.push_back(segmented_object);
