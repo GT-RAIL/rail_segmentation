@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.3 (2015-04-10)
+------------------
+* bounding box info added
+* Contributors: Russell Toris
+
 0.1.2 (2015-04-03)
 ------------------
 * cmake cleanup
