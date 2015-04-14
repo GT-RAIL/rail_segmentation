@@ -2,6 +2,13 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.4 (2015-04-14)
+------------------
+* quick travis fix
+* old parser format
+* Update .travis.yml
+* Contributors: Russell Toris
+
 0.1.3 (2015-04-10)
 ------------------
 * bounding box info added
