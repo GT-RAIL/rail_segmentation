@@ -40,6 +40,6 @@ script:
   - make
   - sudo make install
   - cd ../../
-  - rm -rf yaml
+  - rm -rf yaml*
   - catkin_make
   - catkin_make install
