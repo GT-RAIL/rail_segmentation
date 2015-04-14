@@ -31,6 +31,9 @@
 // YAML
 #include <yaml-cpp/yaml.h>
 
+// C++ Standard Library
+#include <fstream>
+
 using namespace std;
 using namespace rail::segmentation;
 
@@ -74,8 +77,8 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
     YAML::Node cur = zones_config[i];
     // create a zone with the frame ID information
     SegmentationZone zone(cur["name"].as<string>(), cur["parent_frame_id"].as<string>(),
-        cur["child_frame_id"].as<string>(), cur["bounding_frame_id"].as<string>(),
-        cur["segmentation_frame_id"].as<string>());
+                          cur["child_frame_id"].as<string>(), cur["bounding_frame_id"].as<string>(),
+                          cur["segmentation_frame_id"].as<string>());
 
     // check for the remove surface flag
     if (cur["remove_surface"].IsDefined())
@@ -135,6 +138,111 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 
     zones_.push_back(zone);
   }
+#else
+  // parse the segmentation zones
+  ifstream fin(zones_file.c_str());
+  YAML::Parser zones_parser(fin);
+  YAML::Node zones_config;
+  zones_parser.GetNextDocument(zones_config);
+  for (size_t i = 0; i < zones_config.size(); i++)
+  {
+    // parse the required information
+    string name, parent_frame_id, child_frame_id, bounding_frame_id, segmentation_frame_id;
+    zones_config[i]["name"] >> name;
+    zones_config[i]["parent_frame_id"] >> parent_frame_id;
+    zones_config[i]["child_frame_id"] >> child_frame_id;
+    zones_config[i]["bounding_frame_id"] >> bounding_frame_id;
+    zones_config[i]["segmentation_frame_id"] >> segmentation_frame_id;
+
+    // create a zone with the frame ID information
+    SegmentationZone zone(name, parent_frame_id, child_frame_id, bounding_frame_id, segmentation_frame_id);
+
+    // check for the remove surface flag
+    if (zones_config[i].FindValue("remove_surface") != NULL)
+    {
+      bool remove_surface;
+      zones_config[i]["remove_surface"] >> remove_surface;
+      zone.setRemoveSurface(remove_surface);
+    }
+
+    // check for any set limits
+    if (zones_config[i].FindValue("roll_min") != NULL)
+    {
+      double roll_min;
+      zones_config[i]["roll_min"] >> roll_min;
+      zone.setRollMin(roll_min);
+    }
+    if (zones_config[i].FindValue("roll_max") != NULL)
+    {
+      double roll_max;
+      zones_config[i]["roll_max"] >> roll_max;
+      zone.setRollMax(roll_max);
+    }
+    if (zones_config[i].FindValue("pitch_min") != NULL)
+    {
+      double pitch_min;
+      zones_config[i]["pitch_min"] >> pitch_min;
+      zone.setPitchMin(pitch_min);
+    }
+    if (zones_config[i].FindValue("pitch_max") != NULL)
+    {
+      double pitch_max;
+      zones_config[i]["pitch_max"] >> pitch_max;
+      zone.setPitchMax(pitch_max);
+    }
+    if (zones_config[i].FindValue("yaw_min") != NULL)
+    {
+      double yaw_min;
+      zones_config[i]["yaw_min"] >> yaw_min;
+      zone.setYawMin(yaw_min);
+    }
+    if (zones_config[i].FindValue("yaw_max") != NULL)
+    {
+      double yaw_max;
+      zones_config[i]["yaw_max"] >> yaw_max;
+      zone.setYawMax(yaw_max);
+    }
+    if (zones_config[i].FindValue("x_min") != NULL)
+    {
+      double x_min;
+      zones_config[i]["x_min"] >> x_min;
+      zone.setXMin(x_min);
+    }
+    if (zones_config[i].FindValue("x_max") != NULL)
+    {
+      double x_max;
+      zones_config[i]["x_max"] >> x_max;
+      zone.setXMax(x_max);
+    }
+    if (zones_config[i].FindValue("y_min") != NULL)
+    {
+      double y_min;
+      zones_config[i]["y_min"] >> y_min;
+      zone.setYMin(y_min);
+    }
+    if (zones_config[i].FindValue("y_max") != NULL)
+    {
+      double y_max;
+      zones_config[i]["y_max"] >> y_max;
+      zone.setYMax(y_max);
+    }
+    if (zones_config[i].FindValue("z_min") != NULL)
+    {
+      double z_min;
+      zones_config[i]["z_min"] >> z_min;
+      zone.setZMin(z_min);
+    }
+    if (zones_config[i].FindValue("z_max") != NULL)
+    {
+      double z_max;
+      zones_config[i]["z_max"] >> z_max;
+      zone.setZMax(z_max);
+    }
+
+    zones_.push_back(zone);
+  }
+#endif
+
   // check how many zones we have
   if (zones_.size() > 0)
   {
@@ -146,10 +254,6 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
     ROS_ERROR("No valid segmenation zones defined. Check %s.", zones_file.c_str());
     okay_ = false;
   }
-#else
-  ROS_ERROR("Unsupported version of YAML. Config files could not be parsed.");
-  okay_ = false;
-#endif
 }
 
 bool Segmenter::okay() const
@@ -173,11 +277,11 @@ const SegmentationZone &Segmenter::getCurrentZone() const
   {
     // get the current TF information
     geometry_msgs::TransformStamped tf = tf_buffer_.lookupTransform(zones_[i].getParentFrameID(),
-        zones_[i].getChildFrameID(), ros::Time(0));
+                                                                    zones_[i].getChildFrameID(), ros::Time(0));
 
     // convert to a Matrix3x3 to get RPY
     tf2::Matrix3x3 mat(tf2::Quaternion(tf.transform.rotation.x, tf.transform.rotation.y, tf.transform.rotation.z,
-        tf.transform.rotation.w));
+                                       tf.transform.rotation.w));
     double roll, pitch, yaw;
     mat.getRPY(roll, pitch, yaw);
 
@@ -267,7 +371,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
     boost::mutex::scoped_lock lock(pc_mutex_);
     // perform the copy/transform using TF
     pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc_, pc_->header.frame_id,
-        *transformed_pc, tf_);
+                                 *transformed_pc, tf_);
     transformed_pc->header.frame_id = zone.getBoundingFrameID();
     transformed_pc->header.seq = pc_->header.seq;
     transformed_pc->header.stamp = pc_->header.stamp;
@@ -286,7 +390,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   if (zone.getRemoveSurface())
   {
     double z_surface = this->findSurface(transformed_pc, filter_indices, zone.getZMin(), zone.getZMax(),
-        filter_indices);
+                                         filter_indices);
     // check the new bound for Z
     z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
   }
@@ -370,7 +474,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       {
         // perform the copy/transform using TF
         pcl_ros::transformPointCloud(zone.getSegmentationFrameID(), ros::Time(0), *cluster, cluster->header.frame_id,
-            transformed_cluster, tf_);
+                                     transformed_cluster, tf_);
         transformed_cluster.header.frame_id = zone.getSegmentationFrameID();
         transformed_cluster.header.seq = cluster->header.seq;
         transformed_cluster.header.stamp = cluster->header.stamp;
