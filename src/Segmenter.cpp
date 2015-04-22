@@ -310,6 +310,7 @@ bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &r
     // set header information
     object_list_.header.seq++;
     object_list_.header.stamp = ros::Time::now();
+    object_list_.cleared = false;
     // republish
     segmented_objects_pub_.publish(object_list_);
     // delete marker
@@ -330,6 +331,7 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
   boost::mutex::scoped_lock lock(msg_mutex_);
   // empty the list
   object_list_.objects.clear();
+  object_list_.cleared = true;
   // set header information
   object_list_.header.seq++;
   object_list_.header.stamp = ros::Time::now();
@@ -539,6 +541,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
     object_list_.header.seq++;
     object_list_.header.stamp = ros::Time::now();
     object_list_.header.frame_id = zone.getSegmentationFrameID();
+    object_list_.cleared = false;
     segmented_objects_pub_.publish(object_list_);
 
     // publish the new marker array
