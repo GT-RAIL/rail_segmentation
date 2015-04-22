@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.6 (2015-04-22)
+------------------
+* cleared flag added
+* Contributors: Russell Toris
+
 0.1.5 (2015-04-15)
 ------------------
 * Added center point calculation for segmented objects
