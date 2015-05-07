@@ -79,8 +79,6 @@ public:
   static const float DOWNSAMPLE_LEAF_SIZE = 0.01;
   /*! Size of the marker visualization scale factor. */
   static const double MARKER_SCALE = 0.01;
-  /*! Pi */
-  static const double PI = 3.14159;
 
   /*!
    * \brief Create a Segmenter and associated ROS information.

@@ -570,13 +570,13 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       tf::Matrix3x3 m(tf_quat);
       m.getRPY(r, p, y);
       double angle = r + y;
-      while (angle < -PI)
+      while (angle < -3.14159)
       {
-        angle += 2*PI;
+        angle += 2*3.14159;
       }
-      while (angle > PI)
+      while (angle > 3.14159)
       {
-        angle -= 2*PI;
+        angle -= 2*3.14159;
       }
       segmented_object.orientation = tf::createQuaternionMsgFromYaw(angle);
 
