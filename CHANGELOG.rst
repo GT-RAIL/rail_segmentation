@@ -2,6 +2,13 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.7 (2015-05-07)
+------------------
+* removed hard coded constants
+* angle fix
+* Approximated segmented object orientation with PCA
+* Contributors: David Kent, Russell Toris
+
 0.1.6 (2015-04-22)
 ------------------
 * cleared flag added
