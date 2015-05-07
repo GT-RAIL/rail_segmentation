@@ -17,7 +17,6 @@
 #include "SegmentationZone.h"
 
 // ROS
-#include <geometry_msgs/PoseArray.h>
 #include <pcl_ros/point_cloud.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_segmentation/RemoveObject.h>
@@ -31,10 +30,7 @@
 #include <visualization_msgs/MarkerArray.h>
 
 // PCL
-#include <pcl/common/pca.h>
 #include <pcl/filters/conditional_removal.h>
-#include <pcl/filters/project_inliers.h>
-#include <pcl/ModelCoefficients.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
 
@@ -189,8 +185,7 @@ private:
    *
    * Extract a new point cloud based on the inverse of a set of conditions.
    *
-   * \param in The point cloud to take     // publish the eigen vectors
-    eigen_vectors_pub_.publish(eigen_vector_markers);points from.
+   * \param in The point cloud to take points from.
    * \param indices_in The indices in the point cloud to consider.
    * \param conditions The conditions specifying which points to ignore.
    * \param indices_out The set of points that pass the condition test.

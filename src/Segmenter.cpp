@@ -24,7 +24,9 @@
 #include <pcl/common/common.h>
 #include <pcl/filters/extract_indices.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/filters/project_inliers.h>
 #include <pcl/filters/voxel_grid.h>
+#include <pcl/ModelCoefficients.h>
 #include <pcl/segmentation/sac_segmentation.h>
 #include <pcl/segmentation/extract_clusters.h>
 
@@ -534,7 +536,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       // calculate the orientation
       pcl::PointCloud<pcl::PointXYZRGB>::Ptr projected_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
       // project point cloud onto the xy plane
-      pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients());
+      pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
       coefficients->values.resize(4);
       coefficients->values[0] = 0;
       coefficients->values[1] = 0;
@@ -552,7 +554,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       proj.setModelCoefficients(coefficients);
       proj.filter(*projected_cluster);
 
-      //calculate the eigen vectors of the projected point cloud's covariance matrix, used to determine orientation
+      //calculate the Eigen vectors of the projected point cloud's covariance matrix, used to determine orientation
       Eigen::Vector4f projected_centroid;
       Eigen::Matrix3f covariance_matrix;
       pcl::compute3DCentroid(*projected_cluster, projected_centroid);
@@ -570,13 +572,13 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       tf::Matrix3x3 m(tf_quat);
       m.getRPY(r, p, y);
       double angle = r + y;
-      while (angle < -3.14159)
+      while (angle < -M_PI)
       {
-        angle += 2*3.14159;
+        angle += 2 * M_PI;
       }
-      while (angle > 3.14159)
+      while (angle > M_PI)
       {
-        angle -= 2*3.14159;
+        angle -= 2 * M_PI;
       }
       segmented_object.orientation = tf::createQuaternionMsgFromYaw(angle);
 
