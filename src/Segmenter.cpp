@@ -470,17 +470,17 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       cluster->header.frame_id = transformed_pc->header.frame_id;
 
       // check if we need to transform to a different frame
-      pcl::PointCloud<pcl::PointXYZRGB> transformed_cluster;
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
       pcl::PCLPointCloud2::Ptr converted(new pcl::PCLPointCloud2);
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
       {
         // perform the copy/transform using TF
         pcl_ros::transformPointCloud(zone.getSegmentationFrameID(), ros::Time(0), *cluster, cluster->header.frame_id,
-                                     transformed_cluster, tf_);
-        transformed_cluster.header.frame_id = zone.getSegmentationFrameID();
-        transformed_cluster.header.seq = cluster->header.seq;
-        transformed_cluster.header.stamp = cluster->header.stamp;
-        pcl::toPCLPointCloud2(transformed_cluster, *converted);
+                                     *transformed_cluster, tf_);
+        transformed_cluster->header.frame_id = zone.getSegmentationFrameID();
+        transformed_cluster->header.seq = cluster->header.seq;
+        transformed_cluster->header.stamp = cluster->header.stamp;
+        pcl::toPCLPointCloud2(*transformed_cluster, *converted);
       } else
       {
         pcl::toPCLPointCloud2(*cluster, *converted);
@@ -510,7 +510,7 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       Eigen::Vector4f centroid;
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
       {
-        pcl::compute3DCentroid(transformed_cluster, centroid);
+        pcl::compute3DCentroid(*transformed_cluster, centroid);
       } else
       {
         pcl::compute3DCentroid(*cluster, centroid);
@@ -530,6 +530,55 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.center.x = (max_pt[0] + min_pt[0]) / 2.0;
       segmented_object.center.y = (max_pt[1] + min_pt[1]) / 2.0;
       segmented_object.center.z = (max_pt[2] + min_pt[2]) / 2.0;
+
+      // calculate the orientation
+      pcl::PointCloud<pcl::PointXYZRGB>::Ptr projected_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
+      // project point cloud onto the xy plane
+      pcl::ModelCoefficients::Ptr coefficients (new pcl::ModelCoefficients());
+      coefficients->values.resize(4);
+      coefficients->values[0] = 0;
+      coefficients->values[1] = 0;
+      coefficients->values[2] = 1.0;
+      coefficients->values[3] = 0;
+      pcl::ProjectInliers<pcl::PointXYZRGB> proj;
+      proj.setModelType(pcl::SACMODEL_PLANE);
+      if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
+      {
+        proj.setInputCloud(transformed_cluster);
+      } else
+      {
+        proj.setInputCloud(cluster);
+      }
+      proj.setModelCoefficients(coefficients);
+      proj.filter(*projected_cluster);
+
+      //calculate the eigen vectors of the projected point cloud's covariance matrix, used to determine orientation
+      Eigen::Vector4f projected_centroid;
+      Eigen::Matrix3f covariance_matrix;
+      pcl::compute3DCentroid(*projected_cluster, projected_centroid);
+      pcl::computeCovarianceMatrixNormalized(*projected_cluster, projected_centroid, covariance_matrix);
+      Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance_matrix, Eigen::ComputeEigenvectors);
+      Eigen::Matrix3f eigen_vectors = eigen_solver.eigenvectors();
+      eigen_vectors.col(2) = eigen_vectors.col(0).cross(eigen_vectors.col(1));
+      //calculate rotation from eigenvectors
+      const Eigen::Quaternionf qfinal(eigen_vectors);
+
+      //convert orientation to a single angle on the 2D plane defined by the segmentation coordinate frame
+      tf::Quaternion tf_quat;
+      tf_quat.setValue(qfinal.x(), qfinal.y(), qfinal.z(), qfinal.w());
+      double r, p, y;
+      tf::Matrix3x3 m(tf_quat);
+      m.getRPY(r, p, y);
+      double angle = r + y;
+      while (angle < -PI)
+      {
+        angle += 2*PI;
+      }
+      while (angle > PI)
+      {
+        angle -= 2*PI;
+      }
+      segmented_object.orientation = tf::createQuaternionMsgFromYaw(angle);
 
       // add to the final list
       object_list_.objects.push_back(segmented_object);
