@@ -48,11 +48,15 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   debug_ = DEFAULT_DEBUG;
   string point_cloud_topic("/camera/depth_registered/points");
   string zones_file(ros::package::getPath("rail_segmentation") + "/config/zones.yaml");
+  min_cluster_size_ = DEFAULT_MIN_CLUSTER_SIZE;
+  max_cluster_size_ = DEFAULT_MAX_CLUSTER_SIZE;
 
   // grab any parameters we need
   private_node_.getParam("debug", debug_);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
   private_node_.getParam("zones_config", zones_file);
+  private_node_.getParam("min_cluster_size", min_cluster_size_);
+  private_node_.getParam("max_cluster_size", max_cluster_size_);
 
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
@@ -682,8 +686,8 @@ void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPt
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
   kd_tree->setInputCloud(in);
   seg.setClusterTolerance(CLUSTER_TOLERANCE);
-  seg.setMinClusterSize(MIN_CLUSTER_SIZE);
-  seg.setMaxClusterSize(MAX_CLUSTER_SIZE);
+  seg.setMinClusterSize(min_cluster_size_);
+  seg.setMaxClusterSize(max_cluster_size_);
   seg.setSearchMethod(kd_tree);
   seg.setInputCloud(in);
   seg.setIndices(valid);

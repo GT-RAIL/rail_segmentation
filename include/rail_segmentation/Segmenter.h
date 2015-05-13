@@ -66,9 +66,9 @@ public:
   /*! The padding for surface removal. */
   static const double SURFACE_REMOVAL_PADDING = 0.005;
   /*! The minimum cluster size. */
-  static const int MIN_CLUSTER_SIZE = 200;
+  static const int DEFAULT_MIN_CLUSTER_SIZE = 200;
   /*! The maximum cluster size. */
-  static const int MAX_CLUSTER_SIZE = 10000;
+  static const int DEFAULT_MAX_CLUSTER_SIZE = 10000;
   /*! The cluster tolerance level. */
   static const double CLUSTER_TOLERANCE = 0.02;
   /*! Leaf size of the voxel grid for downsampling. */
@@ -239,6 +239,8 @@ private:
 
   /*! The debug, okay check, and first point cloud flags. */
   bool debug_, okay_, first_pc_in_;
+  /*! Cluster parameters. */
+  int min_cluster_size_, max_cluster_size_;
   /*! Mutex for locking on the point cloud and current messages. */
   boost::mutex pc_mutex_, msg_mutex_;
   /*! List of segmentation zones. */
