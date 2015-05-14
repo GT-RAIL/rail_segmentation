@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.8 (2015-05-14)
+------------------
+* allows for params of min/max cluster size
+* Contributors: Russell Toris
+
 0.1.7 (2015-05-07)
 ------------------
 * removed hard coded constants
