@@ -65,6 +65,7 @@ add_executable(${PROJECT_NAME}
   src/SegmentationZone.cpp
   src/Segmenter.cpp
 )
+add_executable(continuous_segmenter nodes/continuous_segmenter.cpp)
 
 ## Add message build dependencies (needed for source build)
 add_dependencies(${PROJECT_NAME}
@@ -78,6 +79,7 @@ target_link_libraries(${PROJECT_NAME}
   ${catkin_LIBRARIES}
   yaml-cpp
 )
+target_link_libraries(continuous_segmenter ${catkin_LIBRARIES})
 
 #############
 ## Install ##
