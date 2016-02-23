@@ -2,6 +2,14 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.9 (2016-02-23)
+------------------
+* Update .travis.yml
+* Update README.md
+* Update package.xml
+* Added a node that continuously calls the segmentation service
+* Contributors: David Kent
+
 0.1.8 (2015-05-14)
 ------------------
 * allows for params of min/max cluster size
