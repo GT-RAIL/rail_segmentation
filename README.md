@@ -1,4 +1,4 @@
-rail_segmentation [![Build Status](https://api.travis-ci.org/WPI-RAIL/rail_segmentation.png)](https://travis-ci.org/WPI-RAIL/rail_segmentation)
+rail_segmentation [![Build Status](https://api.travis-ci.org/GT-RAIL/rail_segmentation.png)](https://travis-ci.org/GT-RAIL/rail_segmentation)
 =================
 
 #### Segmentation Functionality from the RAIL Lab

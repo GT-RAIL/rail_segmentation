@@ -21,7 +21,7 @@ install:
   - mkdir -p /tmp/ws/src
   - ln -s `pwd` /tmp/ws/src/package
   - cd /tmp/ws/src
-  - git clone https://github.com/WPI-RAIL/rail_manipulation_msgs.git
+  - git clone https://github.com/GT-RAIL/rail_manipulation_msgs.git
   - cd ../
   - rosdep install --from-paths src --ignore-src --rosdistro hydro -y
 
