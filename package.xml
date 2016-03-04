@@ -3,9 +3,9 @@
   <version>0.1.9</version>
   <description>Segmentation Functionality from the RAIL Lab</description>
 
-  <author email="rctoris@wpi.edu">Russell Toris</author>
+  <author email="russell.toris@gmail.com">Russell Toris</author>
   <author email="davidkent@wpi.edu">David Kent</author>
-  <maintainer email="rctoris@wpi.edu">Russell Toris</maintainer>
+  <maintainer email="russell.toris@gmail.com">Russell Toris</maintainer>
   <maintainer email="davidkent@wpi.edu">David Kent</maintainer>
 
   <license>BSD</license>

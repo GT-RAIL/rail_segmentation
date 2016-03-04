@@ -5,7 +5,7 @@
  * The segmenter is responsible for segmenting clusters from a point cloud topic. Visualization and data latched topics
  * are published after each request. A persistent array of objects is maintained internally.
  *
- * \author Russell Toris, WPI - rctoris@wpi.edu
+ * \author Russell Toris, WPI - russell.toris@gmail.com
  * \date March 17, 2015
  */
 

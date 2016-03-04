@@ -1,10 +1,15 @@
-language:
-  - cpp
-  - python
-python:
-  - "2.7"
+sudo: required
+dist: trusty
+language: generic
 compiler:
   - gcc
+env:
+  global:
+    - CATKIN_WS=~/catkin_ws
+    - CATKIN_WS_SRC=${CATKIN_WS}/src
+  matrix:
+    - CI_ROS_DISTRO="indigo"
+    - CI_ROS_DISTRO="jade"
 
 branches:
   only:
@@ -12,34 +17,20 @@ branches:
     - develop
 
 install:
-  - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu precise main" > /etc/apt/sources.list.d/ros-latest.list'
+  - sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu trusty main" > /etc/apt/sources.list.d/ros-latest.list'
   - wget http://packages.ros.org/ros.key -O - | sudo apt-key add -
   - sudo apt-get update -qq
-  - sudo apt-get install python-catkin-pkg python-rosdep -qq
+  - sudo apt-get install -qq -y python-rosdep python-catkin-tools
   - sudo rosdep init
   - rosdep update
-  - mkdir -p /tmp/ws/src
-  - ln -s `pwd` /tmp/ws/src/package
-  - cd /tmp/ws/src
-  - git clone https://github.com/GT-RAIL/rail_manipulation_msgs.git
-  - cd ../
-  - rosdep install --from-paths src --ignore-src --rosdistro hydro -y
+  - rosdep install --from-paths ./ -i -y --rosdistro $CI_ROS_DISTRO
 
 script:
-  - source /opt/ros/hydro/setup.bash
-  - catkin_make
-  - catkin_make install
-  - rm -rf build/ devel/ install/
-  - sudo apt-get purge yaml-cpp
-  - wget https://yaml-cpp.googlecode.com/files/yaml-cpp-0.5.1.tar.gz
-  - tar -xvzf yaml-cpp-0.5.1.tar.gz
-  - cd yaml-cpp-0.5.1/
-  - mkdir build
-  - cd build/
-  - cmake ..
-  - make
-  - sudo make install
-  - cd ../../
-  - rm -rf yaml*
-  - catkin_make
-  - catkin_make install
+  - source /opt/ros/$CI_ROS_DISTRO/setup.bash
+  - mkdir -p $CATKIN_WS_SRC
+  - ln -s $TRAVIS_BUILD_DIR $CATKIN_WS_SRC
+  - cd $CATKIN_WS
+  - catkin init
+  - catkin config --install
+  - catkin build --limit-status-rate 0.1 --no-notify -DCMAKE_BUILD_TYPE=Release
+  - catkin build --limit-status-rate 0.1 --no-notify --make-args tests
