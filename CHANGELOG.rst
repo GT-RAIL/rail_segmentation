@@ -2,6 +2,15 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.10 (2016-09-17)
+-------------------
+* Merge pull request `#4 <https://github.com/GT-RAIL/rail_segmentation/issues/4>`_ from velveteenrobot/publish-table
+  Now publishes table as SegmentedObject and table marker as Marker
+* Now publishes table as SegmentedObject and table marker as Marker
+* New travis for indigo and jade
+* email update
+* Contributors: Russell Toris, Sarah Elliott
+
 0.1.9 (2016-02-23)
 ------------------
 * Update .travis.yml

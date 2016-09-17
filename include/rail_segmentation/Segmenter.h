@@ -165,8 +165,8 @@ private:
    * \param indices_out The set of points that are not part of the surface.
    * \return The average height of the surface that was removed or negative infinity if no valid surface was found.
    */
-  double findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
-      const double z_min, const double z_max, const pcl::IndicesPtr &indices_out) const;
+  rail_manipulation_msgs::SegmentedObject findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+      const SegmentationZone &zone, const pcl::IndicesPtr &indices_out) const;
 
   /*!
    * \brief Find clusters in a point cloud.
@@ -251,7 +251,7 @@ private:
   /*! Services advertised by this node */
   ros::ServiceServer segment_srv_, clear_srv_, remove_object_srv_;
   /*! Publishers used in the node. */
-  ros::Publisher segmented_objects_pub_, markers_pub_, debug_pc_pub_, debug_img_pub_;
+  ros::Publisher segmented_objects_pub_, table_pub_, markers_pub_, table_marker_pub_, debug_pc_pub_, debug_img_pub_;
   /*! Subscribers used in the node. */
   ros::Subscriber point_cloud_sub_;
   /*! Main transform listener. */
@@ -265,8 +265,13 @@ private:
   pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_;
   /*! Current object list. */
   rail_manipulation_msgs::SegmentedObjectList object_list_;
+  /*! Current table object. */
+  rail_manipulation_msgs::SegmentedObject table_;
   /*! Current marker array. */
   visualization_msgs::MarkerArray markers_;
+  /*! Current table marker. */
+  visualization_msgs::Marker table_marker_;
+
 };
 
 }
