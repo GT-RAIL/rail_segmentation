@@ -6,35 +6,12 @@
  * are published after each request. A persistent array of objects is maintained internally.
  *
  * \author Russell Toris, WPI - russell.toris@gmail.com
- * \author David Kent, WPI - davidkent@wpi.edu
- * \date March 17, 2015
+ * \author David Kent, GT - dekent@gatech.edu
+ * \date January 12, 2016
  */
 
 // RAIL Segmentation
 #include "rail_segmentation/Segmenter.h"
-
-// ROS
-#include <pcl_ros/transforms.h>
-#include <ros/package.h>
-#include <sensor_msgs/point_cloud_conversion.h>
-#include <sensor_msgs/image_encodings.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-
-// PCL
-#include <pcl/common/common.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/filters/project_inliers.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/segmentation/extract_clusters.h>
-
-// YAML
-#include <yaml-cpp/yaml.h>
-
-// C++ Standard Library
-#include <fstream>
 
 using namespace std;
 using namespace rail::segmentation;
@@ -45,18 +22,16 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   first_pc_in_ = false;
 
   // set defaults
-  debug_ = DEFAULT_DEBUG;
   string point_cloud_topic("/camera/depth_registered/points");
   string zones_file(ros::package::getPath("rail_segmentation") + "/config/zones.yaml");
-  min_cluster_size_ = DEFAULT_MIN_CLUSTER_SIZE;
-  max_cluster_size_ = DEFAULT_MAX_CLUSTER_SIZE;
 
   // grab any parameters we need
-  private_node_.getParam("debug", debug_);
+  private_node_.param("debug", debug_, DEFAULT_DEBUG);
+  private_node_.param("min_cluster_size", min_cluster_size_, DEFAULT_MIN_CLUSTER_SIZE);
+  private_node_.param("max_cluster_size", max_cluster_size_, DEFAULT_MAX_CLUSTER_SIZE);
+  private_node_.param("use_color", use_color_, false);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
   private_node_.getParam("zones_config", zones_file);
-  private_node_.getParam("min_cluster_size", min_cluster_size_);
-  private_node_.getParam("max_cluster_size", max_cluster_size_);
 
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
@@ -462,7 +437,10 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
 
   // extract clusters
   vector<pcl::PointIndices> clusters;
-  this->extractClusters(transformed_pc, filter_indices, clusters);
+  if (use_color_)
+    this->extractClustersRGB(transformed_pc, filter_indices, clusters);
+  else
+    this->extractClustersEuclidean(transformed_pc, filter_indices, clusters);
 
   if (clusters.size() > 0)
   {
@@ -801,7 +779,7 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
   }
 }
 
-void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
+void Segmenter::extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
     const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
 {
   // ignore NaN and infinite values
@@ -819,6 +797,33 @@ void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPt
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
   kd_tree->setInputCloud(in);
   seg.setClusterTolerance(CLUSTER_TOLERANCE);
+  seg.setMinClusterSize(min_cluster_size_);
+  seg.setMaxClusterSize(max_cluster_size_);
+  seg.setSearchMethod(kd_tree);
+  seg.setInputCloud(in);
+  seg.setIndices(valid);
+  seg.extract(clusters);
+}
+
+void Segmenter::extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
+                                   const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
+{
+  // ignore NaN and infinite values
+  pcl::IndicesPtr valid(new vector<int>);
+  for (size_t i = 0; i < indices_in->size(); i++)
+  {
+    if (pcl_isfinite(in->points[indices_in->at(i)].x) & pcl_isfinite(in->points[indices_in->at(i)].y) &
+        pcl_isfinite(in->points[indices_in->at(i)].z))
+    {
+      valid->push_back(indices_in->at(i));
+    }
+  }
+  pcl::RegionGrowingRGB<pcl::PointXYZRGB> seg;
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+  kd_tree->setInputCloud(in);
+  seg.setPointColorThreshold(POINT_COLOR_THRESHOLD);
+  seg.setRegionColorThreshold(REGION_COLOR_THRESHOLD);
+  seg.setDistanceThreshold(CLUSTER_TOLERANCE);
   seg.setMinClusterSize(min_cluster_size_);
   seg.setMaxClusterSize(max_cluster_size_);
   seg.setSearchMethod(kd_tree);

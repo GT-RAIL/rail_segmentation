@@ -6,8 +6,8 @@
  * are published after each request. A persistent array of objects is maintained internally.
  *
  * \author Russell Toris, WPI - russell.toris@gmail.com
- * \author David Kent, WPI - davidkent@wpi.edu
- * \date March 17, 2015
+ * \author David Kent, GT - dekent@gatech.edu
+ * \date January 12, 2016
  */
 
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
@@ -18,26 +18,45 @@
 
 // ROS
 #include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_segmentation/RemoveObject.h>
+#include <ros/package.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
 // PCL
+#include <pcl/common/common.h>
 #include <pcl/filters/conditional_removal.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/project_inliers.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/ModelCoefficients.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/segmentation/sac_segmentation.h>
+
+
+// YAML
+#include <yaml-cpp/yaml.h>
 
 // BOOST
 #include <boost/thread/mutex.hpp>
 
 // C++ Standard Library
+#include <fstream>
 #include <string>
 
 namespace rail
@@ -71,6 +90,10 @@ public:
   static const int DEFAULT_MAX_CLUSTER_SIZE = 10000;
   /*! The cluster tolerance level. */
   static const double CLUSTER_TOLERANCE = 0.02;
+  /*! The color tolerance level, only for RGB segmentation */
+  static const double POINT_COLOR_THRESHOLD = 10;
+  /*! The region color tolerance, only for small region merging in RGB segmentation */
+  static const double REGION_COLOR_THRESHOLD = 10;
   /*! Leaf size of the voxel grid for downsampling. */
   static const float DOWNSAMPLE_LEAF_SIZE = 0.01;
   /*! Size of the marker visualization scale factor. */
@@ -177,8 +200,21 @@ private:
    * \param indices_in The indices in the point cloud to consider.
    * \param clusters The indices of each cluster in the point cloud.
    */
-  void extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+  void extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
       std::vector<pcl::PointIndices> &clusters) const;
+
+
+  /*!
+   * \brief Find clusters in a point cloud.
+   *
+   * Find the clusters in the given point cloud using RGB region growing and a KD search tree.
+   *
+   * \param in The point cloud to search for point clouds from.
+   * \param indices_in The indices in the point cloud to consider.
+   * \param clusters The indices of each cluster in the point cloud.
+   */
+  void extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+                          std::vector<pcl::PointIndices> &clusters) const;
 
   /*!
    * \brief Bound a point cloud based on the inverse of a set of conditions.
@@ -237,8 +273,8 @@ private:
   sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
       const pcl::PointIndices &cluster) const;
 
-  /*! The debug, okay check, and first point cloud flags. */
-  bool debug_, okay_, first_pc_in_;
+  /*! The debug, okay check, first point cloud, and color segmentation flags. */
+  bool debug_, okay_, first_pc_in_, use_color_;
   /*! Cluster parameters. */
   int min_cluster_size_, max_cluster_size_;
   /*! Mutex for locking on the point cloud and current messages. */
