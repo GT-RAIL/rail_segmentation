@@ -292,7 +292,7 @@ private:
   ros::Subscriber point_cloud_sub_;
   /*! Main transform listener. */
   tf::TransformListener tf_;
-  /*! The trasnform tree buffer for the tf2 listener. */
+  /*! The transform tree buffer for the tf2 listener. */
   tf2_ros::Buffer tf_buffer_;
   /*! The buffered trasnform client. */
   tf2_ros::TransformListener tf2_;
