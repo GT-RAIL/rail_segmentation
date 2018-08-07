@@ -7,7 +7,7 @@
  *
  * \author Russell Toris, WPI - russell.toris@gmail.com
  * \author David Kent, GT - dekent@gatech.edu
- * \date January 12, 2016
+ * \date August 7, 2018
  */
 
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
@@ -15,11 +15,13 @@
 
 // RAIL Segmentation
 #include "SegmentationZone.h"
+#include "bounding_volume_calculator.h"
 
 // ROS
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
+#include <rail_manipulation_msgs/SegmentObjects.h>
 #include <rail_segmentation/RemoveObject.h>
 #include <ros/package.h>
 #include <ros/ros.h>
@@ -175,6 +177,28 @@ private:
   bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
   /*!
+   * \brief Callback for the main segmentation request.
+   *
+   * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+   * array of the resulting segmentation.
+   *
+   * \param req The empty request (unused).
+   * \param res The resulting segmented object list.
+   * \return Returns true if the segmentation was successful.
+   */
+  bool segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::Request &req, rail_manipulation_msgs::SegmentObjects::Response &res);
+
+  /*!
+  * \brief Callback for the main segmentation request.
+  *
+  * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+  * array of the resulting segmentation.
+  *
+  * \param objects List for resulting segmented objects.
+  */
+  bool segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects);
+
+  /*!
    * \brief Find and remove a surface from the given point cloud.
    *
    * Find a surface in the input point cloud and attempt to remove it. The surface must be within the bounds provided
@@ -285,7 +309,7 @@ private:
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
   /*! Services advertised by this node */
-  ros::ServiceServer segment_srv_, clear_srv_, remove_object_srv_;
+  ros::ServiceServer segment_srv_, segment_objects_srv_, clear_srv_, remove_object_srv_;
   /*! Publishers used in the node. */
   ros::Publisher segmented_objects_pub_, table_pub_, markers_pub_, table_marker_pub_, debug_pc_pub_, debug_img_pub_;
   /*! Subscribers used in the node. */
@@ -312,5 +336,7 @@ private:
 
 }
 }
+
+Eigen::Vector3f RGB2Lab (const Eigen::Vector3f& colorRGB);
 
 #endif

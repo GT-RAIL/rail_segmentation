@@ -40,6 +40,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
+  segment_objects_srv_ = private_node_.advertiseService("segment_objects", &Segmenter::segmentObjectsCallback, this);
   clear_srv_ = private_node_.advertiseService("clear", &Segmenter::clearCallback, this);
   remove_object_srv_ = private_node_.advertiseService("remove_object", &Segmenter::removeObjectCallback, this);
   segmented_objects_pub_ = private_node_.advertise<rail_manipulation_msgs::SegmentedObjectList>(
@@ -342,6 +343,18 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
 
 bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+  rail_manipulation_msgs::SegmentedObjectList objects;
+  return segmentObjects(objects);
+}
+
+bool Segmenter::segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::Request &req,
+    rail_manipulation_msgs::SegmentObjects::Response &res)
+{
+  return segmentObjects(res.segmented_objects);
+}
+
+bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects)
+{
   // check if we have a point cloud first
   {
     boost::mutex::scoped_lock lock(pc_mutex_);
@@ -353,7 +366,8 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // clear the objects first
-  this->clearCallback(req, res);
+  std_srvs::Empty empty;
+  this->clearCallback(empty.request, empty.response);
 
   // determine the correct segmentation zone
   const SegmentationZone &zone = this->getCurrentZone();
@@ -502,6 +516,21 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.marker = this->createMarker(converted);
       segmented_object.marker.id = i;
 
+      // calculate color features
+      Eigen::Vector3f rgb, lab;
+      rgb[0] = segmented_object.marker.color.r;
+      rgb[1] = segmented_object.marker.color.g;
+      rgb[2] = segmented_object.marker.color.b;
+      lab = RGB2Lab(rgb);
+      segmented_object.rgb.resize(3);
+      segmented_object.cielab.resize(3);
+      segmented_object.rgb[0] = rgb[0];
+      segmented_object.rgb[1] = rgb[1];
+      segmented_object.rgb[2] = rgb[2];
+      segmented_object.cielab[0] = lab[0];
+      segmented_object.cielab[1] = lab[1];
+      segmented_object.cielab[2] = lab[2];
+
       // set the centroid
       Eigen::Vector4f centroid;
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
@@ -515,7 +544,10 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.centroid.y = centroid[1];
       segmented_object.centroid.z = centroid[2];
 
-      // calculate the bounding box
+      // calculate the minimum volume bounding box (assuming the object is resting on a flat surface)
+      segmented_object.bounding_volume = BoundingVolumeCalculator::computeBoundingVolume(segmented_object.point_cloud);
+
+      // calculate the axis-aligned bounding box
       Eigen::Vector4f min_pt, max_pt;
       pcl::getMinMax3D(*cluster, min_pt, max_pt);
       segmented_object.width = max_pt[0] - min_pt[0];
@@ -992,4 +1024,71 @@ double Segmenter::averageZ(const vector<pcl::PointXYZRGB, Eigen::aligned_allocat
     avg += v[i].z;
   }
   return (avg / (double) v.size());
+}
+
+//convert from RGB color space to CIELAB color space, adapted from pcl/registration/gicp6d
+Eigen::Vector3f RGB2Lab (const Eigen::Vector3f& colorRGB)
+{
+  // for sRGB   -> CIEXYZ see http://www.easyrgb.com/index.php?X=MATH&H=02#text2
+  // for CIEXYZ -> CIELAB see http://www.easyrgb.com/index.php?X=MATH&H=07#text7
+
+  double R, G, B, X, Y, Z;
+
+  R = colorRGB[0];
+  G = colorRGB[1];
+  B = colorRGB[2];
+
+  // linearize sRGB values
+  if (R > 0.04045)
+    R = pow ( (R + 0.055) / 1.055, 2.4);
+  else
+    R = R / 12.92;
+
+  if (G > 0.04045)
+    G = pow ( (G + 0.055) / 1.055, 2.4);
+  else
+    G = G / 12.92;
+
+  if (B > 0.04045)
+    B = pow ( (B + 0.055) / 1.055, 2.4);
+  else
+    B = B / 12.92;
+
+  // postponed:
+  //    R *= 100.0;
+  //    G *= 100.0;
+  //    B *= 100.0;
+
+  // linear sRGB -> CIEXYZ
+  X = R * 0.4124 + G * 0.3576 + B * 0.1805;
+  Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+  Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+
+  // *= 100.0 including:
+  X /= 0.95047;  //95.047;
+  //    Y /= 1;//100.000;
+  Z /= 1.08883;  //108.883;
+
+  // CIEXYZ -> CIELAB
+  if (X > 0.008856)
+    X = pow (X, 1.0 / 3.0);
+  else
+    X = 7.787 * X + 16.0 / 116.0;
+
+  if (Y > 0.008856)
+    Y = pow (Y, 1.0 / 3.0);
+  else
+    Y = 7.787 * Y + 16.0 / 116.0;
+
+  if (Z > 0.008856)
+    Z = pow (Z, 1.0 / 3.0);
+  else
+    Z = 7.787 * Z + 16.0 / 116.0;
+
+  Eigen::Vector3f colorLab;
+  colorLab[0] = static_cast<float> (116.0 * Y - 16.0);
+  colorLab[1] = static_cast<float> (500.0 * (X - Y));
+  colorLab[2] = static_cast<float> (200.0 * (Y - Z));
+
+  return colorLab;
 }
