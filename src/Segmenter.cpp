@@ -609,16 +609,19 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
       segmented_object.orientation = tf::createQuaternionMsgFromYaw(angle);
 
       // add to the final list
-      object_list_.objects.push_back(segmented_object);
+      objects.objects.push_back(segmented_object);
       // add to the markers
       markers_.markers.push_back(segmented_object.marker);
     }
 
-    // publish the new list
-    object_list_.header.seq++;
-    object_list_.header.stamp = ros::Time::now();
-    object_list_.header.frame_id = zone.getSegmentationFrameID();
-    object_list_.cleared = false;
+    // create the new list
+    objects.header.seq++;
+    objects.header.stamp = ros::Time::now();
+    objects.header.frame_id = zone.getSegmentationFrameID();
+    objects.cleared = false;
+
+    // update the new list and publish it
+    object_list_ = objects;
     segmented_objects_pub_.publish(object_list_);
 
     // publish the new marker array
