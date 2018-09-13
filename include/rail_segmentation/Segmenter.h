@@ -76,6 +76,32 @@ namespace segmentation
 class Segmenter
 {
 public:
+#if __cplusplus >= 201103L
+  /*! If a topic should be created to display debug information such as point clouds. */
+  static constexpr bool DEFAULT_DEBUG = false;
+  /*! The angle epsilon (delta) threshold for the plane segmenter. */
+  static constexpr double SAC_EPS_ANGLE = 0.15;
+  /*! The distance threshold for the plane segmenter. */
+  static constexpr double SAC_DISTANCE_THRESHOLD = 0.01;
+  /*! The maximum interations for the plane segmenter */
+  static constexpr int SAC_MAX_ITERATIONS = 100;
+  /*! The padding for surface removal. */
+  static constexpr double SURFACE_REMOVAL_PADDING = 0.005;
+  /*! The minimum cluster size. */
+  static constexpr int DEFAULT_MIN_CLUSTER_SIZE = 200;
+  /*! The maximum cluster size. */
+  static constexpr int DEFAULT_MAX_CLUSTER_SIZE = 10000;
+  /*! The cluster tolerance level. */
+  static constexpr double CLUSTER_TOLERANCE = 0.02;
+  /*! The color tolerance level, only for RGB segmentation */
+  static constexpr double POINT_COLOR_THRESHOLD = 10;
+  /*! The region color tolerance, only for small region merging in RGB segmentation */
+  static constexpr double REGION_COLOR_THRESHOLD = 10;
+  /*! Leaf size of the voxel grid for downsampling. */
+  static constexpr float DOWNSAMPLE_LEAF_SIZE = 0.01;
+  /*! Size of the marker visualization scale factor. */
+  static constexpr double MARKER_SCALE = 0.01;
+#else
   /*! If a topic should be created to display debug information such as point clouds. */
   static const bool DEFAULT_DEBUG = false;
   /*! The angle epsilon (delta) threshold for the plane segmenter. */
@@ -100,7 +126,7 @@ public:
   static const float DOWNSAMPLE_LEAF_SIZE = 0.01;
   /*! Size of the marker visualization scale factor. */
   static const double MARKER_SCALE = 0.01;
-
+#endif
   /*!
    * \brief Create a Segmenter and associated ROS information.
    *
