@@ -62,6 +62,7 @@ link_directories(${YAML_CPP_LIBRARY_DIRS})
 ## Declare a cpp executable
 add_executable(${PROJECT_NAME}
   nodes/${PROJECT_NAME}.cpp
+  src/bounding_volume_calculator.cpp
   src/SegmentationZone.cpp
   src/Segmenter.cpp
 )

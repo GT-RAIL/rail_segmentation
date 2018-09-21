@@ -6,8 +6,8 @@
  * are published after each request. A persistent array of objects is maintained internally.
  *
  * \author Russell Toris, WPI - russell.toris@gmail.com
- * \author David Kent, WPI - davidkent@wpi.edu
- * \date March 17, 2015
+ * \author David Kent, GT - dekent@gatech.edu
+ * \date August 7, 2018
  */
 
 #ifndef RAIL_SEGMENTATION_SEGMENTER_H_
@@ -15,29 +15,50 @@
 
 // RAIL Segmentation
 #include "SegmentationZone.h"
+#include "bounding_volume_calculator.h"
 
 // ROS
 #include <pcl_ros/point_cloud.h>
+#include <pcl_ros/transforms.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
+#include <rail_manipulation_msgs/SegmentObjects.h>
 #include <rail_segmentation/RemoveObject.h>
+#include <ros/package.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/point_cloud_conversion.h>
 #include <std_srvs/Empty.h>
 #include <tf/transform_listener.h>
+#include <tf2/LinearMath/Matrix3x3.h>
 #include <tf2_ros/transform_listener.h>
 #include <visualization_msgs/Marker.h>
 #include <visualization_msgs/MarkerArray.h>
 
 // PCL
+#include <pcl/common/common.h>
 #include <pcl/filters/conditional_removal.h>
+#include <pcl/filters/extract_indices.h>
+#include <pcl/filters/passthrough.h>
+#include <pcl/filters/project_inliers.h>
+#include <pcl/filters/voxel_grid.h>
+#include <pcl/ModelCoefficients.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl/segmentation/region_growing_rgb.h>
+#include <pcl/segmentation/sac_segmentation.h>
+
+
+// YAML
+#include <yaml-cpp/yaml.h>
 
 // BOOST
 #include <boost/thread/mutex.hpp>
 
 // C++ Standard Library
+#include <fstream>
 #include <string>
 
 namespace rail
@@ -55,6 +76,32 @@ namespace segmentation
 class Segmenter
 {
 public:
+#if __cplusplus >= 201103L
+  /*! If a topic should be created to display debug information such as point clouds. */
+  static constexpr bool DEFAULT_DEBUG = false;
+  /*! The angle epsilon (delta) threshold for the plane segmenter. */
+  static constexpr double SAC_EPS_ANGLE = 0.15;
+  /*! The distance threshold for the plane segmenter. */
+  static constexpr double SAC_DISTANCE_THRESHOLD = 0.01;
+  /*! The maximum interations for the plane segmenter */
+  static constexpr int SAC_MAX_ITERATIONS = 100;
+  /*! The padding for surface removal. */
+  static constexpr double SURFACE_REMOVAL_PADDING = 0.005;
+  /*! The minimum cluster size. */
+  static constexpr int DEFAULT_MIN_CLUSTER_SIZE = 200;
+  /*! The maximum cluster size. */
+  static constexpr int DEFAULT_MAX_CLUSTER_SIZE = 10000;
+  /*! The cluster tolerance level. */
+  static constexpr double CLUSTER_TOLERANCE = 0.02;
+  /*! The color tolerance level, only for RGB segmentation */
+  static constexpr double POINT_COLOR_THRESHOLD = 10;
+  /*! The region color tolerance, only for small region merging in RGB segmentation */
+  static constexpr double REGION_COLOR_THRESHOLD = 10;
+  /*! Leaf size of the voxel grid for downsampling. */
+  static constexpr float DOWNSAMPLE_LEAF_SIZE = 0.01;
+  /*! Size of the marker visualization scale factor. */
+  static constexpr double MARKER_SCALE = 0.01;
+#else
   /*! If a topic should be created to display debug information such as point clouds. */
   static const bool DEFAULT_DEBUG = false;
   /*! The angle epsilon (delta) threshold for the plane segmenter. */
@@ -71,11 +118,15 @@ public:
   static const int DEFAULT_MAX_CLUSTER_SIZE = 10000;
   /*! The cluster tolerance level. */
   static const double CLUSTER_TOLERANCE = 0.02;
+  /*! The color tolerance level, only for RGB segmentation */
+  static const double POINT_COLOR_THRESHOLD = 10;
+  /*! The region color tolerance, only for small region merging in RGB segmentation */
+  static const double REGION_COLOR_THRESHOLD = 10;
   /*! Leaf size of the voxel grid for downsampling. */
   static const float DOWNSAMPLE_LEAF_SIZE = 0.01;
   /*! Size of the marker visualization scale factor. */
   static const double MARKER_SCALE = 0.01;
-
+#endif
   /*!
    * \brief Create a Segmenter and associated ROS information.
    *
@@ -152,6 +203,28 @@ private:
   bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
   /*!
+   * \brief Callback for the main segmentation request.
+   *
+   * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+   * array of the resulting segmentation.
+   *
+   * \param req The empty request (unused).
+   * \param res The resulting segmented object list.
+   * \return Returns true if the segmentation was successful.
+   */
+  bool segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::Request &req, rail_manipulation_msgs::SegmentObjects::Response &res);
+
+  /*!
+  * \brief Callback for the main segmentation request.
+  *
+  * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
+  * array of the resulting segmentation.
+  *
+  * \param objects List for resulting segmented objects.
+  */
+  bool segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects);
+
+  /*!
    * \brief Find and remove a surface from the given point cloud.
    *
    * Find a surface in the input point cloud and attempt to remove it. The surface must be within the bounds provided
@@ -177,8 +250,21 @@ private:
    * \param indices_in The indices in the point cloud to consider.
    * \param clusters The indices of each cluster in the point cloud.
    */
-  void extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+  void extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
       std::vector<pcl::PointIndices> &clusters) const;
+
+
+  /*!
+   * \brief Find clusters in a point cloud.
+   *
+   * Find the clusters in the given point cloud using RGB region growing and a KD search tree.
+   *
+   * \param in The point cloud to search for point clouds from.
+   * \param indices_in The indices in the point cloud to consider.
+   * \param clusters The indices of each cluster in the point cloud.
+   */
+  void extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+                          std::vector<pcl::PointIndices> &clusters) const;
 
   /*!
    * \brief Bound a point cloud based on the inverse of a set of conditions.
@@ -237,8 +323,8 @@ private:
   sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
       const pcl::PointIndices &cluster) const;
 
-  /*! The debug, okay check, and first point cloud flags. */
-  bool debug_, okay_, first_pc_in_;
+  /*! The debug, okay check, first point cloud, and color segmentation flags. */
+  bool debug_, okay_, first_pc_in_, use_color_;
   /*! Cluster parameters. */
   int min_cluster_size_, max_cluster_size_;
   /*! Mutex for locking on the point cloud and current messages. */
@@ -249,14 +335,14 @@ private:
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
   /*! Services advertised by this node */
-  ros::ServiceServer segment_srv_, clear_srv_, remove_object_srv_;
+  ros::ServiceServer segment_srv_, segment_objects_srv_, clear_srv_, remove_object_srv_;
   /*! Publishers used in the node. */
   ros::Publisher segmented_objects_pub_, table_pub_, markers_pub_, table_marker_pub_, debug_pc_pub_, debug_img_pub_;
   /*! Subscribers used in the node. */
   ros::Subscriber point_cloud_sub_;
   /*! Main transform listener. */
   tf::TransformListener tf_;
-  /*! The trasnform tree buffer for the tf2 listener. */
+  /*! The transform tree buffer for the tf2 listener. */
   tf2_ros::Buffer tf_buffer_;
   /*! The buffered trasnform client. */
   tf2_ros::TransformListener tf2_;
@@ -276,5 +362,7 @@ private:
 
 }
 }
+
+Eigen::Vector3f RGB2Lab (const Eigen::Vector3f& colorRGB);
 
 #endif

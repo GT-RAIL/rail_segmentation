@@ -6,38 +6,20 @@
  * are published after each request. A persistent array of objects is maintained internally.
  *
  * \author Russell Toris, WPI - russell.toris@gmail.com
- * \author David Kent, WPI - davidkent@wpi.edu
- * \date March 17, 2015
+ * \author David Kent, GT - dekent@gatech.edu
+ * \date January 12, 2016
  */
 
 // RAIL Segmentation
 #include "rail_segmentation/Segmenter.h"
 
-// ROS
-#include <pcl_ros/transforms.h>
-#include <ros/package.h>
-#include <sensor_msgs/point_cloud_conversion.h>
-#include <sensor_msgs/image_encodings.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-
-// PCL
-#include <pcl/common/common.h>
-#include <pcl/filters/extract_indices.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/filters/project_inliers.h>
-#include <pcl/filters/voxel_grid.h>
-#include <pcl/ModelCoefficients.h>
-#include <pcl/segmentation/sac_segmentation.h>
-#include <pcl/segmentation/extract_clusters.h>
-
-// YAML
-#include <yaml-cpp/yaml.h>
-
-// C++ Standard Library
-#include <fstream>
-
 using namespace std;
 using namespace rail::segmentation;
+
+//constant definitions (to use in functions with reference parameters, e.g. param())
+const bool Segmenter::DEFAULT_DEBUG;
+const int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
+const int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
 
 Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
@@ -45,21 +27,20 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   first_pc_in_ = false;
 
   // set defaults
-  debug_ = DEFAULT_DEBUG;
   string point_cloud_topic("/camera/depth_registered/points");
   string zones_file(ros::package::getPath("rail_segmentation") + "/config/zones.yaml");
-  min_cluster_size_ = DEFAULT_MIN_CLUSTER_SIZE;
-  max_cluster_size_ = DEFAULT_MAX_CLUSTER_SIZE;
 
   // grab any parameters we need
-  private_node_.getParam("debug", debug_);
+  private_node_.param("debug", debug_, DEFAULT_DEBUG);
+  private_node_.param("min_cluster_size", min_cluster_size_, DEFAULT_MIN_CLUSTER_SIZE);
+  private_node_.param("max_cluster_size", max_cluster_size_, DEFAULT_MAX_CLUSTER_SIZE);
+  private_node_.param("use_color", use_color_, false);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
   private_node_.getParam("zones_config", zones_file);
-  private_node_.getParam("min_cluster_size", min_cluster_size_);
-  private_node_.getParam("max_cluster_size", max_cluster_size_);
 
   // setup publishers/subscribers we need
   segment_srv_ = private_node_.advertiseService("segment", &Segmenter::segmentCallback, this);
+  segment_objects_srv_ = private_node_.advertiseService("segment_objects", &Segmenter::segmentObjectsCallback, this);
   clear_srv_ = private_node_.advertiseService("clear", &Segmenter::clearCallback, this);
   remove_object_srv_ = private_node_.advertiseService("remove_object", &Segmenter::removeObjectCallback, this);
   segmented_objects_pub_ = private_node_.advertise<rail_manipulation_msgs::SegmentedObjectList>(
@@ -362,6 +343,18 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
 
 bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res)
 {
+  rail_manipulation_msgs::SegmentedObjectList objects;
+  return segmentObjects(objects);
+}
+
+bool Segmenter::segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::Request &req,
+    rail_manipulation_msgs::SegmentObjects::Response &res)
+{
+  return segmentObjects(res.segmented_objects);
+}
+
+bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects)
+{
   // check if we have a point cloud first
   {
     boost::mutex::scoped_lock lock(pc_mutex_);
@@ -373,7 +366,8 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
   }
 
   // clear the objects first
-  this->clearCallback(req, res);
+  std_srvs::Empty empty;
+  this->clearCallback(empty.request, empty.response);
 
   // determine the correct segmentation zone
   const SegmentationZone &zone = this->getCurrentZone();
@@ -462,7 +456,10 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
 
   // extract clusters
   vector<pcl::PointIndices> clusters;
-  this->extractClusters(transformed_pc, filter_indices, clusters);
+  if (use_color_)
+    this->extractClustersRGB(transformed_pc, filter_indices, clusters);
+  else
+    this->extractClustersEuclidean(transformed_pc, filter_indices, clusters);
 
   if (clusters.size() > 0)
   {
@@ -519,6 +516,21 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.marker = this->createMarker(converted);
       segmented_object.marker.id = i;
 
+      // calculate color features
+      Eigen::Vector3f rgb, lab;
+      rgb[0] = segmented_object.marker.color.r;
+      rgb[1] = segmented_object.marker.color.g;
+      rgb[2] = segmented_object.marker.color.b;
+      lab = RGB2Lab(rgb);
+      segmented_object.rgb.resize(3);
+      segmented_object.cielab.resize(3);
+      segmented_object.rgb[0] = rgb[0];
+      segmented_object.rgb[1] = rgb[1];
+      segmented_object.rgb[2] = rgb[2];
+      segmented_object.cielab[0] = lab[0];
+      segmented_object.cielab[1] = lab[1];
+      segmented_object.cielab[2] = lab[2];
+
       // set the centroid
       Eigen::Vector4f centroid;
       if (zone.getBoundingFrameID() != zone.getSegmentationFrameID())
@@ -532,7 +544,10 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.centroid.y = centroid[1];
       segmented_object.centroid.z = centroid[2];
 
-      // calculate the bounding box
+      // calculate the minimum volume bounding box (assuming the object is resting on a flat surface)
+      segmented_object.bounding_volume = BoundingVolumeCalculator::computeBoundingVolume(segmented_object.point_cloud);
+
+      // calculate the axis-aligned bounding box
       Eigen::Vector4f min_pt, max_pt;
       pcl::getMinMax3D(*cluster, min_pt, max_pt);
       segmented_object.width = max_pt[0] - min_pt[0];
@@ -594,16 +609,19 @@ bool Segmenter::segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::
       segmented_object.orientation = tf::createQuaternionMsgFromYaw(angle);
 
       // add to the final list
-      object_list_.objects.push_back(segmented_object);
+      objects.objects.push_back(segmented_object);
       // add to the markers
       markers_.markers.push_back(segmented_object.marker);
     }
 
-    // publish the new list
-    object_list_.header.seq++;
-    object_list_.header.stamp = ros::Time::now();
-    object_list_.header.frame_id = zone.getSegmentationFrameID();
-    object_list_.cleared = false;
+    // create the new list
+    objects.header.seq++;
+    objects.header.stamp = ros::Time::now();
+    objects.header.frame_id = zone.getSegmentationFrameID();
+    objects.cleared = false;
+
+    // update the new list and publish it
+    object_list_ = objects;
     segmented_objects_pub_.publish(object_list_);
 
     // publish the new marker array
@@ -801,7 +819,7 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
   }
 }
 
-void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
+void Segmenter::extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
     const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
 {
   // ignore NaN and infinite values
@@ -819,6 +837,33 @@ void Segmenter::extractClusters(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPt
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
   kd_tree->setInputCloud(in);
   seg.setClusterTolerance(CLUSTER_TOLERANCE);
+  seg.setMinClusterSize(min_cluster_size_);
+  seg.setMaxClusterSize(max_cluster_size_);
+  seg.setSearchMethod(kd_tree);
+  seg.setInputCloud(in);
+  seg.setIndices(valid);
+  seg.extract(clusters);
+}
+
+void Segmenter::extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
+                                   const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
+{
+  // ignore NaN and infinite values
+  pcl::IndicesPtr valid(new vector<int>);
+  for (size_t i = 0; i < indices_in->size(); i++)
+  {
+    if (pcl_isfinite(in->points[indices_in->at(i)].x) & pcl_isfinite(in->points[indices_in->at(i)].y) &
+        pcl_isfinite(in->points[indices_in->at(i)].z))
+    {
+      valid->push_back(indices_in->at(i));
+    }
+  }
+  pcl::RegionGrowingRGB<pcl::PointXYZRGB> seg;
+  pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
+  kd_tree->setInputCloud(in);
+  seg.setPointColorThreshold(POINT_COLOR_THRESHOLD);
+  seg.setRegionColorThreshold(REGION_COLOR_THRESHOLD);
+  seg.setDistanceThreshold(CLUSTER_TOLERANCE);
   seg.setMinClusterSize(min_cluster_size_);
   seg.setMaxClusterSize(max_cluster_size_);
   seg.setSearchMethod(kd_tree);
@@ -982,4 +1027,71 @@ double Segmenter::averageZ(const vector<pcl::PointXYZRGB, Eigen::aligned_allocat
     avg += v[i].z;
   }
   return (avg / (double) v.size());
+}
+
+//convert from RGB color space to CIELAB color space, adapted from pcl/registration/gicp6d
+Eigen::Vector3f RGB2Lab (const Eigen::Vector3f& colorRGB)
+{
+  // for sRGB   -> CIEXYZ see http://www.easyrgb.com/index.php?X=MATH&H=02#text2
+  // for CIEXYZ -> CIELAB see http://www.easyrgb.com/index.php?X=MATH&H=07#text7
+
+  double R, G, B, X, Y, Z;
+
+  R = colorRGB[0];
+  G = colorRGB[1];
+  B = colorRGB[2];
+
+  // linearize sRGB values
+  if (R > 0.04045)
+    R = pow ( (R + 0.055) / 1.055, 2.4);
+  else
+    R = R / 12.92;
+
+  if (G > 0.04045)
+    G = pow ( (G + 0.055) / 1.055, 2.4);
+  else
+    G = G / 12.92;
+
+  if (B > 0.04045)
+    B = pow ( (B + 0.055) / 1.055, 2.4);
+  else
+    B = B / 12.92;
+
+  // postponed:
+  //    R *= 100.0;
+  //    G *= 100.0;
+  //    B *= 100.0;
+
+  // linear sRGB -> CIEXYZ
+  X = R * 0.4124 + G * 0.3576 + B * 0.1805;
+  Y = R * 0.2126 + G * 0.7152 + B * 0.0722;
+  Z = R * 0.0193 + G * 0.1192 + B * 0.9505;
+
+  // *= 100.0 including:
+  X /= 0.95047;  //95.047;
+  //    Y /= 1;//100.000;
+  Z /= 1.08883;  //108.883;
+
+  // CIEXYZ -> CIELAB
+  if (X > 0.008856)
+    X = pow (X, 1.0 / 3.0);
+  else
+    X = 7.787 * X + 16.0 / 116.0;
+
+  if (Y > 0.008856)
+    Y = pow (Y, 1.0 / 3.0);
+  else
+    Y = 7.787 * Y + 16.0 / 116.0;
+
+  if (Z > 0.008856)
+    Z = pow (Z, 1.0 / 3.0);
+  else
+    Z = 7.787 * Z + 16.0 / 116.0;
+
+  Eigen::Vector3f colorLab;
+  colorLab[0] = static_cast<float> (116.0 * Y - 16.0);
+  colorLab[1] = static_cast<float> (500.0 * (X - Y));
+  colorLab[2] = static_cast<float> (200.0 * (Y - Z));
+
+  return colorLab;
 }
