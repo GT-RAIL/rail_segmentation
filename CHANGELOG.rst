@@ -2,6 +2,24 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.11 (2018-09-21)
+-------------------
+* Segmenter.h: Fix compilation error with -std=c++11.
+  This commit fixes compilation errors due to compilation with std=c++11,
+  such as:
+  include/rail_segmentation/Segmenter.h:82:23: error: ‘constexpr’ needed for
+  in-class initialization of static data member
+  ‘const double rail::segmentation::Segmenter::SAC_EPS_ANGLE’ of
+  non-integral type [-fpermissive]
+  static const double SAC_EPS_ANGLE = 0.15;
+  ^~~~~~~~~~~~~
+  Signed-off-by: Elvis Dowson <elvis.dowson@gmail.com>
+* Fixing a small bug so that the segment_objects service matches the topic data
+* Better bounding box calculation, added average rgb and cielab color to segmented object messages as they are calculated anyway, and added an alternative service api, segment_objects, that returns the segmented object list in the service response (while still broadcasting the segmented object list on the topic)
+* Constant definition fix for functions with reference parameters
+* Added option for euclidean + RGB clustering instead of solely euclidean distance
+* Contributors: David Kent, Elvis Dowson, Levon Avagyan, Russell Toris, Siddhartha Banerjee
+
 0.1.10 (2016-09-17)
 -------------------
 * Merge pull request `#4 <https://github.com/GT-RAIL/rail_segmentation/issues/4>`_ from velveteenrobot/publish-table
