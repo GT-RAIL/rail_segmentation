@@ -1012,7 +1012,9 @@ void Segmenter::inverseBound(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &
 {
   // use a temp point cloud to extract the indices
   pcl::PointCloud<pcl::PointXYZRGB> tmp;
-  pcl::ConditionalRemoval<pcl::PointXYZRGB> removal(conditions, true);
+  //pcl::ConditionalRemoval<pcl::PointXYZRGB> removal(conditions, true);
+  pcl::ConditionalRemoval<pcl::PointXYZRGB> removal(true);
+  removal.setCondition(conditions);
   removal.setInputCloud(in);
   removal.setIndices(indices_in);
   removal.filter(tmp);
