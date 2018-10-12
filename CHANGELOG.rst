@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.12 (2018-10-12)
+-------------------
+* Replacing deprecated pcl call to upgrade ROS versions
+* Contributors: David Kent
+
 0.1.11 (2018-09-21)
 -------------------
 * Segmenter.h: Fix compilation error with -std=c++11.
