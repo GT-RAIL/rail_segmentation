@@ -20,6 +20,7 @@ using namespace rail::segmentation;
 const bool Segmenter::DEFAULT_DEBUG;
 const int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
 const int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
+const double Segmenter::CLUSTER_TOLERANCE;
 
 Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
@@ -34,6 +35,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   private_node_.param("debug", debug_, DEFAULT_DEBUG);
   private_node_.param("min_cluster_size", min_cluster_size_, DEFAULT_MIN_CLUSTER_SIZE);
   private_node_.param("max_cluster_size", max_cluster_size_, DEFAULT_MAX_CLUSTER_SIZE);
+  private_node_.param("cluster_tolerance", cluster_tolerance_, CLUSTER_TOLERANCE);
   private_node_.param("use_color", use_color_, false);
   private_node_.param("crop_first", crop_first_, false);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
@@ -858,7 +860,7 @@ void Segmenter::extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>
   pcl::EuclideanClusterExtraction<pcl::PointXYZRGB> seg;
   pcl::search::KdTree<pcl::PointXYZRGB>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZRGB>);
   kd_tree->setInputCloud(in);
-  seg.setClusterTolerance(CLUSTER_TOLERANCE);
+  seg.setClusterTolerance(cluster_tolerance_);
   seg.setMinClusterSize(min_cluster_size_);
   seg.setMaxClusterSize(max_cluster_size_);
   seg.setSearchMethod(kd_tree);
@@ -885,7 +887,7 @@ void Segmenter::extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::Cons
   kd_tree->setInputCloud(in);
   seg.setPointColorThreshold(POINT_COLOR_THRESHOLD);
   seg.setRegionColorThreshold(REGION_COLOR_THRESHOLD);
-  seg.setDistanceThreshold(CLUSTER_TOLERANCE);
+  seg.setDistanceThreshold(cluster_tolerance_);
   seg.setMinClusterSize(min_cluster_size_);
   seg.setMaxClusterSize(max_cluster_size_);
   seg.setSearchMethod(kd_tree);

@@ -333,6 +333,8 @@ private:
   std::vector<SegmentationZone> zones_;
   /*! Flag for cropping the point cloud before table detection or after */
   bool crop_first_;
+  /*! Settable euclidean distance tolerance for including a point in a cluster */
+  double cluster_tolerance_;
 
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
