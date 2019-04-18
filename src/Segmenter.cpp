@@ -35,6 +35,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   private_node_.param("min_cluster_size", min_cluster_size_, DEFAULT_MIN_CLUSTER_SIZE);
   private_node_.param("max_cluster_size", max_cluster_size_, DEFAULT_MAX_CLUSTER_SIZE);
   private_node_.param("use_color", use_color_, false);
+  private_node_.param("crop_first", crop_first_, false);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
   private_node_.getParam("zones_config", zones_file);
 
@@ -396,12 +397,15 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
 
   // check if we need to remove a surface
   double z_min = zone.getZMin();
-  if (zone.getRemoveSurface())
+  if (!crop_first_)
   {
-    table_ = this->findSurface(transformed_pc, filter_indices, zone, filter_indices);
-    double z_surface = table_.centroid.z;
-    // check the new bound for Z
-    z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
+    if (zone.getRemoveSurface())
+    {
+      table_ = this->findSurface(transformed_pc, filter_indices, zone, filter_indices);
+      double z_surface = table_.centroid.z;
+      // check the new bound for Z
+      z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
+    }
   }
 
   // check bounding areas (bound the inverse of what we want since PCL will return the removed indicies)
@@ -445,6 +449,24 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
 
   // remove past the given bounds
   this->inverseBound(transformed_pc, filter_indices, bounds, filter_indices);
+
+  if (crop_first_)
+  {
+    if (zone.getRemoveSurface())
+    {
+      table_ = this->findSurface(transformed_pc, filter_indices, zone, filter_indices);
+      double z_surface = table_.centroid.z;
+      // check the new bound for Z
+      z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
+
+      pcl::ConditionOr<pcl::PointXYZRGB>::Ptr table_bounds(new pcl::ConditionOr<pcl::PointXYZRGB>);
+      table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+          new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::LE, z_min))
+      );
+      // remove below the table bounds
+      this->inverseBound(transformed_pc, filter_indices, bounds, filter_indices);
+    }
+  }
 
   // publish the filtered and bounded PC pre-segmentation
   if (debug_)

@@ -331,6 +331,8 @@ private:
   boost::mutex pc_mutex_, msg_mutex_;
   /*! List of segmentation zones. */
   std::vector<SegmentationZone> zones_;
+  /*! Flag for cropping the point cloud before table detection or after */
+  bool crop_first_;
 
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
