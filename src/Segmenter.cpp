@@ -46,6 +46,8 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   segment_objects_srv_ = private_node_.advertiseService("segment_objects", &Segmenter::segmentObjectsCallback, this);
   clear_srv_ = private_node_.advertiseService("clear", &Segmenter::clearCallback, this);
   remove_object_srv_ = private_node_.advertiseService("remove_object", &Segmenter::removeObjectCallback, this);
+  calculate_features_srv_ = private_node_.advertiseService("calculate_features", &Segmenter::calculateFeaturesCallback,
+      this);
   segmented_objects_pub_ = private_node_.advertise<rail_manipulation_msgs::SegmentedObjectList>(
       "segmented_objects", 1, true
   );
@@ -663,6 +665,119 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
   } else
   {
     ROS_WARN("No segmented objects found.");
+  }
+
+  return true;
+}
+
+bool Segmenter::calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegmentedObjects::Request &req,
+    rail_manipulation_msgs::ProcessSegmentedObjects::Response &res)
+{
+  res.segmented_objects.header = req.segmented_objects.header;
+  res.segmented_objects.cleared = req.segmented_objects.cleared;
+  res.segmented_objects.objects.resize(req.segmented_objects.objects.size());
+
+  for (size_t i = 0; i < res.segmented_objects.objects.size(); i ++)
+  {
+    // convert to a SegmentedObject message
+    res.segmented_objects.objects[i].recognized = req.segmented_objects.objects[i].recognized;
+
+    // can't recalculate this after initial segmentation has already happened...
+    res.segmented_objects.objects[i].image = req.segmented_objects.objects[i].image;
+
+    // set the point cloud
+    res.segmented_objects.objects[i].point_cloud = req.segmented_objects.objects[i].point_cloud;
+
+    // get point cloud as pcl point cloud
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr pcl_cloud(new pcl::PointCloud<pcl::PointXYZRGB>);
+    pcl::PCLPointCloud2::Ptr temp_cloud(new pcl::PCLPointCloud2);
+    pcl_conversions::toPCL(res.segmented_objects.objects[i].point_cloud, *temp_cloud);
+    pcl::fromPCLPointCloud2(*temp_cloud, *pcl_cloud);
+
+    // create a marker and set the extra fields
+    res.segmented_objects.objects[i].marker = this->createMarker(temp_cloud);
+    res.segmented_objects.objects[i].marker.id = i;
+
+    // calculate color features
+    Eigen::Vector3f rgb, lab;
+    rgb[0] = res.segmented_objects.objects[i].marker.color.r;
+    rgb[1] = res.segmented_objects.objects[i].marker.color.g;
+    rgb[2] = res.segmented_objects.objects[i].marker.color.b;
+    lab = RGB2Lab(rgb);
+    res.segmented_objects.objects[i].rgb.resize(3);
+    res.segmented_objects.objects[i].cielab.resize(3);
+    res.segmented_objects.objects[i].rgb[0] = rgb[0];
+    res.segmented_objects.objects[i].rgb[1] = rgb[1];
+    res.segmented_objects.objects[i].rgb[2] = rgb[2];
+    res.segmented_objects.objects[i].cielab[0] = lab[0];
+    res.segmented_objects.objects[i].cielab[1] = lab[1];
+    res.segmented_objects.objects[i].cielab[2] = lab[2];
+
+    // set the centroid
+    Eigen::Vector4f centroid;
+    pcl::compute3DCentroid(*pcl_cloud, centroid);
+    res.segmented_objects.objects[i].centroid.x = centroid[0];
+    res.segmented_objects.objects[i].centroid.y = centroid[1];
+    res.segmented_objects.objects[i].centroid.z = centroid[2];
+
+    // calculate the minimum volume bounding box (assuming the object is resting on a flat surface)
+    res.segmented_objects.objects[i].bounding_volume =
+        BoundingVolumeCalculator::computeBoundingVolume(res.segmented_objects.objects[i].point_cloud);
+
+    // calculate the axis-aligned bounding box
+    Eigen::Vector4f min_pt, max_pt;
+    pcl::getMinMax3D(*pcl_cloud, min_pt, max_pt);
+    res.segmented_objects.objects[i].width = max_pt[0] - min_pt[0];
+    res.segmented_objects.objects[i].depth = max_pt[1] - min_pt[1];
+    res.segmented_objects.objects[i].height = max_pt[2] - min_pt[2];
+
+    // calculate the center
+    res.segmented_objects.objects[i].center.x = (max_pt[0] + min_pt[0]) / 2.0;
+    res.segmented_objects.objects[i].center.y = (max_pt[1] + min_pt[1]) / 2.0;
+    res.segmented_objects.objects[i].center.z = (max_pt[2] + min_pt[2]) / 2.0;
+
+    // calculate the orientation
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr projected_cluster(new pcl::PointCloud<pcl::PointXYZRGB>);
+    // project point cloud onto the xy plane
+    pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients());
+    coefficients->values.resize(4);
+    coefficients->values[0] = 0;
+    coefficients->values[1] = 0;
+    coefficients->values[2] = 1.0;
+    coefficients->values[3] = 0;
+    pcl::ProjectInliers<pcl::PointXYZRGB> proj;
+    proj.setModelType(pcl::SACMODEL_PLANE);
+    proj.setInputCloud(pcl_cloud);
+    proj.setModelCoefficients(coefficients);
+    proj.filter(*projected_cluster);
+
+    //calculate the Eigen vectors of the projected point cloud's covariance matrix, used to determine orientation
+    Eigen::Vector4f projected_centroid;
+    Eigen::Matrix3f covariance_matrix;
+    pcl::compute3DCentroid(*projected_cluster, projected_centroid);
+    pcl::computeCovarianceMatrixNormalized(*projected_cluster, projected_centroid, covariance_matrix);
+    Eigen::SelfAdjointEigenSolver<Eigen::Matrix3f> eigen_solver(covariance_matrix, Eigen::ComputeEigenvectors);
+    Eigen::Matrix3f eigen_vectors = eigen_solver.eigenvectors();
+    eigen_vectors.col(2) = eigen_vectors.col(0).cross(eigen_vectors.col(1));
+    //calculate rotation from eigenvectors
+    const Eigen::Quaternionf qfinal(eigen_vectors);
+
+    //convert orientation to a single angle on the 2D plane defined by the segmentation coordinate frame
+    tf::Quaternion tf_quat;
+    tf_quat.setValue(qfinal.x(), qfinal.y(), qfinal.z(), qfinal.w());
+    double r, p, y;
+    tf::Matrix3x3 m(tf_quat);
+    m.getRPY(r, p, y);
+    double angle = r + y;
+    while (angle < -M_PI)
+    {
+      angle += 2 * M_PI;
+    }
+    while (angle > M_PI)
+    {
+      angle -= 2 * M_PI;
+    }
+    res.segmented_objects.objects[i].orientation = tf::createQuaternionMsgFromYaw(angle);
   }
 
   return true;

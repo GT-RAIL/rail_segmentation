@@ -20,6 +20,7 @@
 // ROS
 #include <pcl_ros/point_cloud.h>
 #include <pcl_ros/transforms.h>
+#include <rail_manipulation_msgs/ProcessSegmentedObjects.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_manipulation_msgs/SegmentObjects.h>
 #include <rail_segmentation/RemoveObject.h>
@@ -202,6 +203,9 @@ private:
    */
   bool segmentCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 
+  bool calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegmentedObjects::Request &req,
+      rail_manipulation_msgs::ProcessSegmentedObjects::Response &res);
+
   /*!
    * \brief Callback for the main segmentation request.
    *
@@ -339,7 +343,7 @@ private:
   /*! The global and private ROS node handles. */
   ros::NodeHandle node_, private_node_;
   /*! Services advertised by this node */
-  ros::ServiceServer segment_srv_, segment_objects_srv_, clear_srv_, remove_object_srv_;
+  ros::ServiceServer segment_srv_, segment_objects_srv_, clear_srv_, remove_object_srv_, calculate_features_srv_;
   /*! Publishers used in the node. */
   ros::Publisher segmented_objects_pub_, table_pub_, markers_pub_, table_marker_pub_, debug_pc_pub_, debug_img_pub_;
   /*! Subscribers used in the node. */
