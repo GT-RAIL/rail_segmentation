@@ -82,6 +82,12 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
       zone.setRemoveSurface(cur["remove_surface"].as<bool>());
     }
 
+    // check for the remove surface flag
+    if (cur["require_surface"].IsDefined())
+    {
+      zone.setRequireSurface(cur["require_surface"].as<bool>());
+    }
+
     // check for any set limits
     if (cur["roll_min"].IsDefined())
     {
@@ -159,6 +165,12 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
       bool remove_surface;
       zones_config[i]["remove_surface"] >> remove_surface;
       zone.setRemoveSurface(remove_surface);
+    }
+    if (zones_config[i].FindValue("require_surface") != NULL)
+    {
+      bool require_surface;
+      zones_config[i]["require_surface"] >> require_surface;
+      zone.setRequireSurface(require_surface);
     }
 
     // check for any set limits
@@ -405,7 +417,13 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
   {
     if (zone.getRemoveSurface())
     {
-      table_ = this->findSurface(transformed_pc, filter_indices, zone, filter_indices);
+      bool surface_found = this->findSurface(transformed_pc, filter_indices, zone, filter_indices, table_);
+      if (zone.getRequireSurface() && !surface_found)
+      {
+        objects.objects.clear();
+        ROS_INFO("Could not find a surface within the segmentation zone.  Exiting segmentation with no objects found.");
+        return true;
+      }
       double z_surface = table_.centroid.z;
       // check the new bound for Z
       z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
@@ -458,7 +476,13 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
   {
     if (zone.getRemoveSurface())
     {
-      table_ = this->findSurface(transformed_pc, filter_indices, zone, filter_indices);
+      bool surface_found = this->findSurface(transformed_pc, filter_indices, zone, filter_indices, table_);
+      if (zone.getRequireSurface() && !surface_found)
+      {
+        objects.objects.clear();
+        ROS_INFO("Could not find a surface within the segmentation zone.  Exiting segmentation with no objects found.");
+        return true;
+      }
       double z_surface = table_.centroid.z;
       // check the new bound for Z
       z_min = max(zone.getZMin(), z_surface + SURFACE_REMOVAL_PADDING);
@@ -783,12 +807,10 @@ bool Segmenter::calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegment
   return true;
 }
 
-rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
-    const pcl::IndicesConstPtr &indices_in, const SegmentationZone &zone,
-    const pcl::IndicesPtr &indices_out) const
+bool Segmenter::findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
+    const pcl::IndicesConstPtr &indices_in, const SegmentationZone &zone, const pcl::IndicesPtr &indices_out,
+    rail_manipulation_msgs::SegmentedObject &table_out) const
 {
-  rail_manipulation_msgs::SegmentedObject table;
-
   // use a plane (SAC) segmenter
   pcl::SACSegmentation<pcl::PointXYZRGB> plane_seg;
   // set the segmenation parameters
@@ -820,8 +842,8 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
     {
       ROS_WARN("Could not find a surface above %fm and below %fm.", zone.getZMin(), zone.getZMax());
       *indices_out = *indices_in;
-      table.centroid.z = -numeric_limits<double>::infinity();
-      return table;
+      table_out.centroid.z = -numeric_limits<double>::infinity();
+      return false;
     }
 
     // remove the plane
@@ -859,23 +881,23 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
       }
 
       // convert to a SegmentedObject message
-      table.recognized = false;
+      table_out.recognized = false;
 
       // set the RGB image
-      table.image = this->createImage(pc_copy, *inliers_ptr);
+      table_out.image = this->createImage(pc_copy, *inliers_ptr);
 
       // check if we want to publish the image
       if (debug_)
       {
-        debug_img_pub_.publish(table.image);
+        debug_img_pub_.publish(table_out.image);
       }
 
       // set the point cloud
-      pcl_conversions::fromPCL(*converted, table.point_cloud);
-      table.point_cloud.header.stamp = ros::Time::now();
+      pcl_conversions::fromPCL(*converted, table_out.point_cloud);
+      table_out.point_cloud.header.stamp = ros::Time::now();
       // create a marker and set the extra fields
-      table.marker = this->createMarker(converted);
-      table.marker.id = 0;
+      table_out.marker = this->createMarker(converted);
+      table_out.marker.id = 0;
 
       // set the centroid
       Eigen::Vector4f centroid;
@@ -886,21 +908,21 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
       {
         pcl::compute3DCentroid(plane, centroid);
       }
-      table.centroid.x = centroid[0];
-      table.centroid.y = centroid[1];
-      table.centroid.z = centroid[2];
+      table_out.centroid.x = centroid[0];
+      table_out.centroid.y = centroid[1];
+      table_out.centroid.z = centroid[2];
 
       // calculate the bounding box
       Eigen::Vector4f min_pt, max_pt;
       pcl::getMinMax3D(plane, min_pt, max_pt);
-      table.width = max_pt[0] - min_pt[0];
-      table.depth = max_pt[1] - min_pt[1];
-      table.height = max_pt[2] - min_pt[2];
+      table_out.width = max_pt[0] - min_pt[0];
+      table_out.depth = max_pt[1] - min_pt[1];
+      table_out.height = max_pt[2] - min_pt[2];
 
       // calculate the center
-      table.center.x = (max_pt[0] + min_pt[0]) / 2.0;
-      table.center.y = (max_pt[1] + min_pt[1]) / 2.0;
-      table.center.z = (max_pt[2] + min_pt[2]) / 2.0;
+      table_out.center.x = (max_pt[0] + min_pt[0]) / 2.0;
+      table_out.center.y = (max_pt[1] + min_pt[1]) / 2.0;
+      table_out.center.z = (max_pt[2] + min_pt[2]) / 2.0;
 
 
       // calculate the orientation
@@ -951,9 +973,9 @@ rail_manipulation_msgs::SegmentedObject Segmenter::findSurface(const pcl::PointC
       {
         angle -= 2 * M_PI;
       }
-      table.orientation = tf::createQuaternionMsgFromYaw(angle);
+      table_out.orientation = tf::createQuaternionMsgFromYaw(angle);
 
-      return table;
+      return true;
     }
   }
 }

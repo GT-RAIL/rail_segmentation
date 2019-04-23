@@ -240,10 +240,12 @@ private:
    * \param z_min The minimum height of a surface to remove.
    * \param z_max The maximum height of a surface to remove.
    * \param indices_out The set of points that are not part of the surface.
-   * \return The average height of the surface that was removed or negative infinity if no valid surface was found.
+   * \param table_out the table as a segmented object, to be published on a separate topic
+   * \return true if a surface was found, false otherwise
    */
-  rail_manipulation_msgs::SegmentedObject findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
-      const SegmentationZone &zone, const pcl::IndicesPtr &indices_out) const;
+  bool findSurface(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in, const pcl::IndicesConstPtr &indices_in,
+      const SegmentationZone &zone, const pcl::IndicesPtr &indices_out,
+      rail_manipulation_msgs::SegmentedObject &table_out) const;
 
   /*!
    * \brief Find clusters in a point cloud.

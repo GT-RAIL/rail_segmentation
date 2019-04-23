@@ -65,6 +65,25 @@ public:
   bool getRemoveSurface() const;
 
   /*!
+   * \brief Require surface value mutator.
+   *
+   * Set the require surface value of this SegmentationZone.
+   *
+   * \param require_surface The new require surface value.
+   */
+  void setRequireSurface(const bool require_surface);
+
+  /*!
+   * \brief Remove surface value accessor.
+   *
+   * Check if surface detection is required to succeed before segmentation continues.  Only used if remove_surface_ is
+   * true.
+   *
+   * \return The require surface value value.
+   */
+  bool getRequireSurface() const;
+
+  /*!
    * \brief Name value mutator.
    *
    * Set the name value of this SegmentationZone.
@@ -372,7 +391,7 @@ public:
 
 private:
   /*! If a surface removal should be done. */
-  bool remove_surface_;
+  bool remove_surface_, require_surface_;
   /*! The associated name and frame information for this zone. */
   std::string name_, parent_frame_id_, child_frame_id_, segmentation_frame_id_, bounding_frame_id_;
   /*! The limits for this zone. */

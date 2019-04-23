@@ -23,8 +23,9 @@ SegmentationZone::SegmentationZone(const string &name, const string &parent_fram
     : name_(name), parent_frame_id_(parent_frame_id), child_frame_id_(child_frame_id),
       bounding_frame_id_(bounding_frame_id), segmentation_frame_id_(segmentation_frame_id)
 {
-  // default remove surface
+  // default remove and require surface
   remove_surface_ = true;
+  require_surface_ = false;
 
   // set default limits
   roll_min_ = -numeric_limits<double>::infinity();
@@ -50,6 +51,16 @@ void SegmentationZone::setRemoveSurface(const bool remove_surface)
 bool SegmentationZone::getRemoveSurface() const
 {
   return remove_surface_;
+}
+
+void SegmentationZone::setRequireSurface(const bool require_surface)
+{
+  require_surface_ = require_surface;
+}
+
+bool SegmentationZone::getRequireSurface() const
+{
+  return require_surface_;
 }
 
 void SegmentationZone::setName(const string &name)
