@@ -492,7 +492,7 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
           new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::LE, z_min))
       );
       // remove below the table bounds
-      this->inverseBound(transformed_pc, filter_indices, bounds, filter_indices);
+      this->inverseBound(transformed_pc, filter_indices, table_bounds, filter_indices);
     }
   }
 
