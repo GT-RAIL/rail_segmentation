@@ -38,6 +38,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   private_node_.param("cluster_tolerance", cluster_tolerance_, CLUSTER_TOLERANCE);
   private_node_.param("use_color", use_color_, false);
   private_node_.param("crop_first", crop_first_, false);
+  private_node_.param("label_markers", label_markers_, false);
   private_node_.getParam("point_cloud_topic", point_cloud_topic);
   private_node_.getParam("zones_config", zones_file);
 
@@ -323,7 +324,28 @@ bool Segmenter::removeObjectCallback(rail_segmentation::RemoveObject::Request &r
     segmented_objects_pub_.publish(object_list_);
     // delete marker
     markers_.markers[req.index].action = visualization_msgs::Marker::DELETE;
-    markers_pub_.publish(markers_);
+    if (label_markers_)
+    {
+      text_markers_.markers[req.index].action = visualization_msgs::Marker::DELETE;
+    }
+
+    if (label_markers_)
+    {
+      visualization_msgs::MarkerArray marker_list;
+      marker_list.markers.reserve(markers_.markers.size() + text_markers_.markers.size());
+      marker_list.markers.insert(marker_list.markers.end(), markers_.markers.begin(), markers_.markers.end());
+      marker_list.markers.insert(marker_list.markers.end(), text_markers_.markers.begin(), text_markers_.markers.end());
+      markers_pub_.publish(marker_list);
+    }
+    else
+    {
+      markers_pub_.publish(markers_);
+    }
+
+    if (label_markers_)
+    {
+      text_markers_.markers.erase(text_markers_.markers.begin() + req.index);
+    }
     markers_.markers.erase(markers_.markers.begin() + req.index);
     return true;
   } else
@@ -350,8 +372,32 @@ bool Segmenter::clearCallback(std_srvs::Empty::Request &req, std_srvs::Empty::Re
   {
     markers_.markers[i].action = visualization_msgs::Marker::DELETE;
   }
-  markers_pub_.publish(markers_);
+  if (label_markers_)
+  {
+    for (size_t i = 0; i < text_markers_.markers.size(); i++)
+    {
+      text_markers_.markers[i].action = visualization_msgs::Marker::DELETE;
+    }
+  }
+
+  if (label_markers_)
+  {
+    visualization_msgs::MarkerArray marker_list;
+    marker_list.markers.reserve(markers_.markers.size() + text_markers_.markers.size());
+    marker_list.markers.insert(marker_list.markers.end(), markers_.markers.begin(), markers_.markers.end());
+    marker_list.markers.insert(marker_list.markers.end(), text_markers_.markers.begin(), text_markers_.markers.end());
+    markers_pub_.publish(marker_list);
+  } else
+  {
+    markers_pub_.publish(markers_);
+  }
+
   markers_.markers.clear();
+
+  if (label_markers_)
+  {
+    text_markers_.markers.clear();
+  }
 
   table_marker_.action = visualization_msgs::Marker::DELETE;
   table_marker_pub_.publish(table_marker_);
@@ -662,6 +708,36 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
       objects.objects.push_back(segmented_object);
       // add to the markers
       markers_.markers.push_back(segmented_object.marker);
+
+      if (label_markers_)
+      {
+        // create a text marker to label the current marker
+        visualization_msgs::Marker text_marker;
+        text_marker.header = segmented_object.marker.header;
+        text_marker.ns = "segmentation_labels";
+        text_marker.id = i;
+        text_marker.type = visualization_msgs::Marker::TEXT_VIEW_FACING;
+        text_marker.action = visualization_msgs::Marker::ADD;
+
+        text_marker.pose.position.x = segmented_object.center.x;
+        text_marker.pose.position.y = segmented_object.center.y;
+        text_marker.pose.position.z = segmented_object.center.z + 0.05 + segmented_object.height/2.0;
+
+        text_marker.scale.x = .1;
+        text_marker.scale.y = .1;
+        text_marker.scale.z = .1;
+
+        text_marker.color.r = 1;
+        text_marker.color.g = 1;
+        text_marker.color.b = 1;
+        text_marker.color.a = 1;
+
+        stringstream marker_label;
+        marker_label << "i:" << i;
+        text_marker.text = marker_label.str();
+
+        text_markers_.markers.push_back(text_marker);
+      }
     }
 
     // create the new list
@@ -675,7 +751,17 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
     segmented_objects_pub_.publish(object_list_);
 
     // publish the new marker array
-    markers_pub_.publish(markers_);
+    if (label_markers_)
+    {
+      visualization_msgs::MarkerArray marker_list;
+      marker_list.markers.reserve(markers_.markers.size() + text_markers_.markers.size());
+      marker_list.markers.insert(marker_list.markers.end(), markers_.markers.begin(), markers_.markers.end());
+      marker_list.markers.insert(marker_list.markers.end(), text_markers_.markers.begin(), text_markers_.markers.end());
+      markers_pub_.publish(marker_list);
+    } else
+    {
+      markers_pub_.publish(markers_);
+    }
 
     // add to the markers
     table_marker_ = table_.marker;

@@ -339,6 +339,8 @@ private:
   std::vector<SegmentationZone> zones_;
   /*! Flag for cropping the point cloud before table detection or after */
   bool crop_first_;
+  /*! Flag for labeling cluster markers with their index */
+  bool label_markers_;
   /*! Settable euclidean distance tolerance for including a point in a cluster */
   double cluster_tolerance_;
 
@@ -365,6 +367,8 @@ private:
   rail_manipulation_msgs::SegmentedObject table_;
   /*! Current marker array. */
   visualization_msgs::MarkerArray markers_;
+    /*! Current marker label array (only used if label_markers_ is true). */
+    visualization_msgs::MarkerArray text_markers_;
   /*! Current table marker. */
   visualization_msgs::Marker table_marker_;
 
