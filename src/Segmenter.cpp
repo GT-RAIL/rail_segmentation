@@ -537,6 +537,41 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
       table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
           new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::LE, z_min))
       );
+
+      // plane segmentation does adds back in the filtered indices, so we need to re-add the old bounds (this should
+      // be faster than conditionally merging the two lists of indices, which would require a bunch of searches the
+      // length of the point cloud's number of points)
+      if (zone.getZMax() < numeric_limits<double>::infinity())
+      {
+        table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+            new pcl::FieldComparison<pcl::PointXYZRGB>("z", pcl::ComparisonOps::GE, zone.getZMax()))
+        );
+      }
+      if (zone.getYMin() > -numeric_limits<double>::infinity())
+      {
+        table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+            new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::LE, zone.getYMin()))
+        );
+      }
+      if (zone.getYMax() < numeric_limits<double>::infinity())
+      {
+        table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+            new pcl::FieldComparison<pcl::PointXYZRGB>("y", pcl::ComparisonOps::GE, zone.getYMax()))
+        );
+      }
+      if (zone.getXMin() > -numeric_limits<double>::infinity())
+      {
+        table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+            new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::LE, zone.getXMin()))
+        );
+      }
+      if (zone.getXMax() < numeric_limits<double>::infinity())
+      {
+        table_bounds->addComparison(pcl::FieldComparison<pcl::PointXYZRGB>::ConstPtr(
+            new pcl::FieldComparison<pcl::PointXYZRGB>("x", pcl::ComparisonOps::GE, zone.getXMax()))
+        );
+      }
+
       // remove below the table bounds
       this->inverseBound(transformed_pc, filter_indices, table_bounds, filter_indices);
     }
