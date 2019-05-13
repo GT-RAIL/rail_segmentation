@@ -24,9 +24,6 @@ const double Segmenter::CLUSTER_TOLERANCE;
 
 Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
-  // flag for the first point cloud coming in
-  first_pc_in_ = false;
-
   // set defaults
   string point_cloud_topic("/camera/depth_registered/points");
   string zones_file(ros::package::getPath("rail_segmentation") + "/config/zones.yaml");
@@ -39,7 +36,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   private_node_.param("use_color", use_color_, false);
   private_node_.param("crop_first", crop_first_, false);
   private_node_.param("label_markers", label_markers_, false);
-  private_node_.getParam("point_cloud_topic", point_cloud_topic);
+  private_node_.param<string>("point_cloud_topic", point_cloud_topic_, "/camera/depth_registered/points");
   private_node_.getParam("zones_config", zones_file);
 
   // setup publishers/subscribers we need
@@ -48,7 +45,7 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   clear_srv_ = private_node_.advertiseService("clear", &Segmenter::clearCallback, this);
   remove_object_srv_ = private_node_.advertiseService("remove_object", &Segmenter::removeObjectCallback, this);
   calculate_features_srv_ = private_node_.advertiseService("calculate_features", &Segmenter::calculateFeaturesCallback,
-      this);
+                                                           this);
   segmented_objects_pub_ = private_node_.advertise<rail_manipulation_msgs::SegmentedObjectList>(
       "segmented_objects", 1, true
   );
@@ -57,7 +54,6 @@ Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
   );
   markers_pub_ = private_node_.advertise<visualization_msgs::MarkerArray>("markers", 1, true);
   table_marker_pub_ = private_node_.advertise<visualization_msgs::Marker>("table_marker", 1, true);
-  point_cloud_sub_ = node_.subscribe(point_cloud_topic, 1, &Segmenter::pointCloudCallback, this);
   // setup a debug publisher if we need it
   if (debug_)
   {
@@ -270,15 +266,6 @@ bool Segmenter::okay() const
   return okay_;
 }
 
-void Segmenter::pointCloudCallback(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &pc)
-{
-  // lock for the point cloud
-  boost::mutex::scoped_lock lock(pc_mutex_);
-  // simply store the latest point cloud
-  first_pc_in_ = true;
-  pc_ = pc;
-}
-
 const SegmentationZone &Segmenter::getCurrentZone() const
 {
   // check each zone
@@ -418,15 +405,15 @@ bool Segmenter::segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::R
 
 bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects)
 {
-  // check if we have a point cloud first
+  // get the latest point cloud
+  pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_msg = ros::topic::waitForMessage< pcl::PointCloud<pcl::PointXYZRGB> >(point_cloud_topic_, node_, ros::Duration(10.0));
+  if (pc_msg == NULL)
   {
-    boost::mutex::scoped_lock lock(pc_mutex_);
-    if (!first_pc_in_)
-    {
-      ROS_WARN("No point cloud received yet. Ignoring segmentation request.");
-      return false;
-    }
+    ROS_INFO("No point cloud received for segmentation.");
+    return false;
   }
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>);
+  *pc = *pc_msg;
 
   // clear the objects first
   std_srvs::Empty empty;
@@ -438,16 +425,11 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
 
   // transform the point cloud to the fixed frame
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  // lock on the point cloud
-  {
-    boost::mutex::scoped_lock lock(pc_mutex_);
-    // perform the copy/transform using TF
-    pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc_, pc_->header.frame_id,
-                                 *transformed_pc, tf_);
-    transformed_pc->header.frame_id = zone.getBoundingFrameID();
-    transformed_pc->header.seq = pc_->header.seq;
-    transformed_pc->header.stamp = pc_->header.stamp;
-  }
+  pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc, pc->header.frame_id,
+                               *transformed_pc, tf_);
+  transformed_pc->header.frame_id = zone.getBoundingFrameID();
+  transformed_pc->header.seq = pc->header.seq;
+  transformed_pc->header.stamp = pc->header.stamp;
 
   // start with every index
   pcl::IndicesPtr filter_indices(new vector<int>);
@@ -1128,7 +1110,7 @@ void Segmenter::extractClustersEuclidean(const pcl::PointCloud<pcl::PointXYZRGB>
 }
 
 void Segmenter::extractClustersRGB(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
-                                   const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
+    const pcl::IndicesConstPtr &indices_in, vector<pcl::PointIndices> &clusters) const
 {
   // ignore NaN and infinite values
   pcl::IndicesPtr valid(new vector<int>);
