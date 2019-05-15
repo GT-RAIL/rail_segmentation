@@ -406,14 +406,24 @@ bool Segmenter::segmentObjectsCallback(rail_manipulation_msgs::SegmentObjects::R
 bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects)
 {
   // get the latest point cloud
-  pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_msg = ros::topic::waitForMessage< pcl::PointCloud<pcl::PointXYZRGB> >(point_cloud_topic_, node_, ros::Duration(10.0));
-  if (pc_msg == NULL)
-  {
-    ROS_INFO("No point cloud received for segmentation.");
-    return false;
-  }
+  ros::Time request_time = ros::Time::now();
+  ros::Time point_cloud_time = request_time - ros::Duration(0.1);
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  *pc = *pc_msg;
+  while (point_cloud_time < request_time)
+  {
+    pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_msg =
+        ros::topic::waitForMessage< pcl::PointCloud<pcl::PointXYZRGB> >(point_cloud_topic_, node_, ros::Duration(10.0));
+    if (pc_msg == NULL)
+    {
+      ROS_INFO("No point cloud received for segmentation.");
+      return false;
+    }
+    else
+    {
+      *pc = *pc_msg;
+    }
+    point_cloud_time = pcl_conversions::fromPCL(pc->header.stamp);
+  }
 
   // clear the objects first
   std_srvs::Empty empty;
