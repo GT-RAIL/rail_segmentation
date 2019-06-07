@@ -2,6 +2,17 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.13 (2019-06-07)
+-------------------
+* Safer wait for point cloud that checks timestamps
+* Switched continuous point cloud polling for waitForMessage
+* Added an option to publish marker labels for each cluster for debugging
+* Added a flag to the segmentation zone config to require a table; if this is set to true, segmentation will only be performed if a surface was successfully detected in the current segmentation zone.
+* New service for re-calculating (or filling in uncalculated) features of segmented objects, assuming that at minimum the point cloud field is set
+* Exposed cluster tolerance as a parameter
+* Optional parameter for cropping the workspace before table detection (defaults to false so it won't change behavior for anything currently using rail_segmentation), which potentially speeds up segmentation but may cause table detection to fail more often when segmenting in small, cluttered segmentation zones
+* Contributors: David Kent
+
 0.1.12 (2018-10-12)
 -------------------
 * Replacing deprecated pcl call to upgrade ROS versions
