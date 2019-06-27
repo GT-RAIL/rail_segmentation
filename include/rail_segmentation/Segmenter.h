@@ -23,6 +23,7 @@
 #include <rail_manipulation_msgs/ProcessSegmentedObjects.h>
 #include <rail_manipulation_msgs/SegmentedObjectList.h>
 #include <rail_manipulation_msgs/SegmentObjects.h>
+#include <rail_manipulation_msgs/SegmentObjectsFromPointCloud.h>
 #include <rail_segmentation/RemoveObject.h>
 #include <ros/package.h>
 #include <ros/ros.h>
@@ -212,6 +213,18 @@ private:
     /*!
     * \brief Callback for the main segmentation request.
     *
+    * Performs a segmenation with the provided point cloud. This will publish both a segmented object list and a marker
+    * array of the resulting segmentation.
+    *
+    * \param req The empty request (unused).
+    * \param res The resulting segmented object list.
+    * \return Returns true if the segmentation was successful.
+    */
+    bool segmentObjectsFromPointCloudCallback(rail_manipulation_msgs::SegmentObjectsFromPointCloud::Request &req, rail_manipulation_msgs::SegmentObjectsFromPointCloud::Response &res);
+
+    /*!
+    * \brief Callback for the main segmentation request.
+    *
     * Performs a segmenation with the latest point cloud. This will publish both a segmented object list and a marker
     * array of the resulting segmentation.
     *
@@ -320,8 +333,8 @@ private:
     sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
         const pcl::PointIndices &cluster) const;
 
-    /*! The debug, okay check, and color segmentation flags. */
-    bool debug_, okay_, use_color_;
+    /*! The debug, okay check, color segmentation, and segment from provided point cloud flags. */
+    bool debug_, okay_, use_color_, use_provided_pc_;
     /*! Cluster parameters. */
     int min_cluster_size_, max_cluster_size_;
     /*! Mutex for locking on the point cloud and current messages. */
@@ -338,7 +351,7 @@ private:
     /*! The global and private ROS node handles. */
     ros::NodeHandle node_, private_node_;
     /*! Services advertised by this node */
-    ros::ServiceServer segment_srv_, segment_objects_srv_, clear_srv_, remove_object_srv_, calculate_features_srv_;
+    ros::ServiceServer segment_srv_, segment_objects_srv_, segment_objects_from_point_cloud_srv_, clear_srv_, remove_object_srv_, calculate_features_srv_;
     /*! Publishers used in the node. */
     ros::Publisher segmented_objects_pub_, table_pub_, markers_pub_, table_marker_pub_, debug_pc_pub_, debug_img_pub_;
     /*! Subscribers used in the node. */
@@ -352,6 +365,8 @@ private:
 
     std::string point_cloud_topic_;
 
+    /*! Provided point cloud. */
+    pcl::PointCloud<pcl::PointXYZRGB>::Ptr provided_pc_;
     /*! Current object list. */
     rail_manipulation_msgs::SegmentedObjectList object_list_;
     /*! Current table object. */
