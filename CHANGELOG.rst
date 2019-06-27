@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.14 (2019-06-27)
+-------------------
+* Added new service which takes in a point cloud to segment
+* Contributors: David Kent, Weiyu Liu
+
 0.1.13 (2019-06-07)
 -------------------
 * Safer wait for point cloud that checks timestamps
