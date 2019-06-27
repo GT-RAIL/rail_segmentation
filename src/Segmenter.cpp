@@ -22,10 +22,9 @@ const int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
 const int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
 const double Segmenter::CLUSTER_TOLERANCE;
 
-Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_), provided_pc_(new pcl::PointCloud<pcl::PointXYZRGB>)
+Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
   // flag for using the provided point cloud
-  use_provided_pc_ = false;
 
   // set defaults
   string point_cloud_topic("/head_camera/depth_registered/points");
@@ -411,43 +410,42 @@ bool Segmenter::segmentObjectsFromPointCloudCallback(rail_manipulation_msgs::Seg
                                                      rail_manipulation_msgs::SegmentObjectsFromPointCloud::Response &res)
 {
   // convert pc from sensor_msgs::PointCloud2 to pcl::PointCloud<pcl::PointXYZRGB>
-  pcl::fromROSMsg(req.point_cloud, *provided_pc_);
+  pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>);
 
-  // set flag
-  use_provided_pc_ = true;
-  bool result = segmentObjects(res.segmented_objects);
+  pcl::fromROSMsg(req.point_cloud, *pc);
 
-  // set flag back
-  use_provided_pc_ = false;
-  return result;
+  return executeSegmentation(pc, res.segmented_objects);
 }
 
 bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects)
 {
+  // get the latest point cloud
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  if (!use_provided_pc_)
+  ros::Time request_time = ros::Time::now();
+  ros::Time point_cloud_time = request_time - ros::Duration(0.1);
+  while (point_cloud_time < request_time)
   {
-    // get the latest point cloud
-    ros::Time request_time = ros::Time::now();
-    ros::Time point_cloud_time = request_time - ros::Duration(0.1);
-    while (point_cloud_time < request_time)
+    pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_msg =
+        ros::topic::waitForMessage<pcl::PointCloud<pcl::PointXYZRGB> >(point_cloud_topic_, node_,
+                                                                       ros::Duration(10.0));
+    if (pc_msg == NULL)
     {
-      pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr pc_msg =
-          ros::topic::waitForMessage<pcl::PointCloud<pcl::PointXYZRGB> >(point_cloud_topic_, node_,
-                                                                         ros::Duration(10.0));
-      if (pc_msg == NULL)
-      {
-        ROS_INFO("No point cloud received for segmentation.");
-        return false;
-      }
-      else
-      {
-        *pc = *pc_msg;
-      }
-      point_cloud_time = pcl_conversions::fromPCL(pc->header.stamp);
+      ROS_INFO("No point cloud received for segmentation.");
+      return false;
     }
+    else
+    {
+      *pc = *pc_msg;
+    }
+    point_cloud_time = pcl_conversions::fromPCL(pc->header.stamp);
   }
 
+  return executeSegmentation(pc, objects);
+}
+
+bool Segmenter::executeSegmentation(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc,
+    rail_manipulation_msgs::SegmentedObjectList &objects)
+{
   // clear the objects first
   std_srvs::Empty empty;
   this->clearCallback(empty.request, empty.response);
@@ -458,22 +456,11 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
 
   // transform the point cloud to the fixed frame
   pcl::PointCloud<pcl::PointXYZRGB>::Ptr transformed_pc(new pcl::PointCloud<pcl::PointXYZRGB>);
-  if (!use_provided_pc_)
-  {
-    pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc, pc->header.frame_id,
-                                 *transformed_pc, tf_);
-    transformed_pc->header.frame_id = zone.getBoundingFrameID();
-    transformed_pc->header.seq = pc->header.seq;
-    transformed_pc->header.stamp = pc->header.stamp;
-  }
-  else
-  {
-    pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *provided_pc_, provided_pc_->header.frame_id,
-                                 *transformed_pc, tf_);
-    transformed_pc->header.frame_id = zone.getBoundingFrameID();
-    transformed_pc->header.seq = provided_pc_->header.seq;
-    transformed_pc->header.stamp = provided_pc_->header.stamp;
-  }
+  pcl_ros::transformPointCloud(zone.getBoundingFrameID(), ros::Time(0), *pc, pc->header.frame_id,
+                               *transformed_pc, tf_);
+  transformed_pc->header.frame_id = zone.getBoundingFrameID();
+  transformed_pc->header.seq = pc->header.seq;
+  transformed_pc->header.stamp = pc->header.stamp;
 
   // start with every index
   pcl::IndicesPtr filter_indices(new vector<int>);
@@ -842,8 +829,6 @@ bool Segmenter::segmentObjects(rail_manipulation_msgs::SegmentedObjectList &obje
   {
     ROS_WARN("No segmented objects found.");
   }
-
-  return true;
 }
 
 bool Segmenter::calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegmentedObjects::Request &req,

@@ -233,6 +233,14 @@ private:
     bool segmentObjects(rail_manipulation_msgs::SegmentedObjectList &objects);
 
     /*!
+     * \brief Main segmentation routine.
+     * @param pc input point cloud to be segmented
+     * @return true on success, to be passed to service return
+     */
+    bool executeSegmentation(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc,
+        rail_manipulation_msgs::SegmentedObjectList &objects);
+
+    /*!
      * \brief Find and remove a surface from the given point cloud.
      *
      * Find a surface in the input point cloud and attempt to remove it. The surface must be within the bounds provided
@@ -333,8 +341,8 @@ private:
     sensor_msgs::Image createImage(const pcl::PointCloud<pcl::PointXYZRGB>::ConstPtr &in,
         const pcl::PointIndices &cluster) const;
 
-    /*! The debug, okay check, color segmentation, and segment from provided point cloud flags. */
-    bool debug_, okay_, use_color_, use_provided_pc_;
+    /*! The debug, okay check, and color segmentation flags. */
+    bool debug_, okay_, use_color_;
     /*! Cluster parameters. */
     int min_cluster_size_, max_cluster_size_;
     /*! Mutex for locking on the point cloud and current messages. */
@@ -365,8 +373,6 @@ private:
 
     std::string point_cloud_topic_;
 
-    /*! Provided point cloud. */
-    pcl::PointCloud<pcl::PointXYZRGB>::Ptr provided_pc_;
     /*! Current object list. */
     rail_manipulation_msgs::SegmentedObjectList object_list_;
     /*! Current table object. */
