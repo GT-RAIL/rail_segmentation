@@ -853,6 +853,9 @@ bool Segmenter::calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegment
     // can't recalculate this after initial segmentation has already happened...
     res.segmented_objects.objects[i].image = req.segmented_objects.objects[i].image;
 
+    // can't recalculate this without the initial image...
+    res.segmented_objects.objects[i].image_indices = req.segmented_objects.objects[i].image_indices;
+
     // set the point cloud
     res.segmented_objects.objects[i].point_cloud = req.segmented_objects.objects[i].point_cloud;
 
