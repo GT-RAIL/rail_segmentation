@@ -2,6 +2,11 @@
 Changelog for package rail_segmentation
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
+0.1.15 (2019-06-28)
+-------------------
+* Minor update to fix an incorrect declaration of a static const variable under certain compilers
+* Contributors: David Kent
+
 0.1.14 (2019-06-27)
 -------------------
 * Added new service which takes in a point cloud to segment
