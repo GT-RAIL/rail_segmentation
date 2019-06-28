@@ -8,7 +8,7 @@ env:
     - CATKIN_WS=~/catkin_ws
     - CATKIN_WS_SRC=${CATKIN_WS}/src
   matrix:
-    - CI_ROS_DISTRO="melodic"
+    - CI_ROS_DISTRO="kinetic"
 
 branches:
   only:
