@@ -13,7 +13,7 @@ env:
 
 branches:
   only:
-    - indigo-devel
+    - develop
     - kinetic-devel
     - melodic-devel
 
