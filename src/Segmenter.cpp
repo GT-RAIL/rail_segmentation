@@ -17,10 +17,17 @@ using namespace std;
 using namespace rail::segmentation;
 
 //constant definitions (to use in functions with reference parameters, e.g. param())
-const bool Segmenter::DEFAULT_DEBUG;
-const int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
-const int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
-const double Segmenter::CLUSTER_TOLERANCE;
+#if __cplusplus >= 201103L
+  constexpr bool Segmenter::DEFAULT_DEBUG;
+  constexpr int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
+  constexpr int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
+  constexpr double Segmenter::CLUSTER_TOLERANCE;
+#else
+  const bool Segmenter::DEFAULT_DEBUG;
+  const int Segmenter::DEFAULT_MIN_CLUSTER_SIZE;
+  const int Segmenter::DEFAULT_MAX_CLUSTER_SIZE;
+  const double Segmenter::CLUSTER_TOLERANCE;
+#endif
 
 Segmenter::Segmenter() : private_node_("~"), tf2_(tf_buffer_)
 {
