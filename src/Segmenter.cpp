@@ -836,6 +836,8 @@ bool Segmenter::executeSegmentation(pcl::PointCloud<pcl::PointXYZRGB>::Ptr pc,
   {
     ROS_WARN("No segmented objects found.");
   }
+
+  return true;
 }
 
 bool Segmenter::calculateFeaturesCallback(rail_manipulation_msgs::ProcessSegmentedObjects::Request &req,
