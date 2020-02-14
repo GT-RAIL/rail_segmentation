@@ -12,7 +12,7 @@ env:
 
 branches:
   only:
-    - develop
+    - indigo-devel
     - kinetic-devel
 
 install:
