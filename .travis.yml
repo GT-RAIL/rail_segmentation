@@ -12,8 +12,6 @@ env:
 
 branches:
   only:
-    - indigo-devel
-    - kinetic-devel
     - melodic-devel
 
 install:
