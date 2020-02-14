@@ -12,6 +12,7 @@ env:
 
 branches:
   only:
+    - kinetic-devel
     - melodic-devel
 
 install:
